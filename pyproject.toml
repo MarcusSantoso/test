@@ -1,0 +1,43 @@
+[project]
+name = "user_service"
+version = "0.0.1"
+authors = [
+  { name="your_name", email="your_computing_id@sfu.ca" },
+]
+description = "A small user service"
+readme = "README.md"
+requires-python = ">=3.13"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "alembic>=1.16.5",
+    "dotenv>=0.9.9",
+    "fastapi>=0.117.1",
+    "nicegui>=2.24.2",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.11.9",
+    "pytest-cov>=7.0.0",
+    "sqlalchemy>=2.0.43",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "ruff>=0.13.2",
+]
+
+
+
