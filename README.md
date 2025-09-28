@@ -57,3 +57,13 @@ $ docker system prune --volumes
 ```
 $ docker compose exec web pytest
 ```
+
+## Relevant documentation
+
+[FastAPI User Guide](https://fastapi.tiangolo.com/tutorial/first-steps/) - This is the main library our web service runs on. Note that wherever it says to run, e.g., `fastapi dev main.py`, you should run `docker compose watch` to get a live server.
+
+[SQLAlchemy](https://docs.sqlalchemy.org/en/20/orm/quickstart.html) - This is the library we use to access our database (which is PostgreSQL). Use the links in the table of contents to skip to the type of query you want.
+
+[Alembic](https://alembic.sqlalchemy.org/en/latest/) - This tool is used to manage changes to our database schemas. Whenever you want to modify a table's shape in postgres (i.e., add, remove, or change the type of a column), use an alembic migration.
+
+[NiceGUI](https://nicegui.io/) - This is the library used for the frontend in the admin interface.
