@@ -4,7 +4,15 @@ Your team has been put in charge of a janky web service that handles user accoun
 
 ## Getting started
 
-One member from each team will mirror this repository privately on github.com (NOT github.sfu.ca). Each team will have a team repository, and each team member will have their own fork of the team repository. It may help to create a github organization for your team.
+One member from each group will mirror this repository privately on github.com (NOT github.sfu.ca) to create the team repository used for grading. If you wish to follow my recommended git process, then each group member will have their own private fork of the team repository from which they can make pull requests. It may help to create a github organization so your team repository isn't tied to any individual group member's account. All copies of the `user_service` repository must be private. **Making this code and your contributions to it publicly available (i.e., by making your repository public, or by making a pull request against a public repository) constitutes academic dishonesty.**
+
+To mirror, create a private empty repository at `https://github.com/<some_id>/user_service`, and then run:
+```
+$ git clone https://github.sfu.ca/kjamshid/user_service
+$ git remote rename origin source
+$ git remote add upstream https://github.com/<some_id>/user_service
+$ git push -u main upstream
+```
 
 The teaching staff will only be looking at the team repository: it suffices to add kjamsh as a collaborator. Please do not add me as a collaborator to your own repositories, only the team repository.
 
