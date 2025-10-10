@@ -49,10 +49,11 @@ class UserRepository:
         users = self.session.scalars(select(User)).all()
         return users
 
-    async def get_by_name(self, name: str) -> User:
-        """Get user by name"""
-        user = next((u for u in await self.get_all() if u.name == name), None)
-        return user
+    async def get_by_name(self, name: str) -> User | None:
+        """Get user by name using an indexed lookup (no full scan)."""
+        return self.session.scalars(
+            select(User).where(User.name == name).limit(1)
+        ).first()
 
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
