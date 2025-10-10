@@ -7,3 +7,9 @@ RUN pip install -e .
 
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
 CMD ["uvicorn", "user_service.api:app", "--host", "0.0.0.0", "--port", "8000"]
+
+COPY . /app
+WORKDIR /app
+
+# Normalize CRLF->LF and ensure the script is executable (Windows-friendly)
+RUN sed -i 's/\r$//' scripts/docker-entrypoint.sh && chmod +x scripts/docker-entrypoint.sh

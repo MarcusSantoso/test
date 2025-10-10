@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, insert, delete, String
 from sqlalchemy.orm import declarative_base, Session, mapped_column, Mapped
 from fastapi import Depends
+from sqlalchemy.exc import IntegrityError
 
 from shared.database import get_db
 
@@ -22,16 +23,26 @@ class UserRepository:
         self.session = session
 
     async def create(self, name: str) -> User:
-        result = self.session.execute(insert(User), [{"name": name}])
-        self.session.commit()
-        return User(name=name)
+        try:
+            self.session.execute(insert(User), [{"name": name}])
+            self.session.commit()
+            return User(name=name)
+        except IntegrityError:
+            self.session.rollback()
+            raise
+        except Exception:
+            self.session.rollback()
+            raise
 
     async def delete(self, name: str) -> None:
-        user = await self.get_by_name(name)
-        stmt = delete(User).where(User.name == name)
-        result = self.session.execute(stmt)
-        self.session.commit()
-        return result
+        try:
+            stmt = delete(User).where(User.name == name)
+            result = self.session.execute(stmt)
+            self.session.commit()
+            return result
+        except Exception:
+            self.session.rollback()
+            raise
 
     async def get_all(self) -> list[User]:
         """Get all users"""
