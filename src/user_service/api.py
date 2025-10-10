@@ -13,11 +13,14 @@ logger = logging.getLogger('uvicorn.error')
 app = FastAPI()
 
 @app.post("/users/", status_code=201)
-async def create_user(user: UserSchema, response: Response, user_repo: UserRepository = Depends(get_user_repository)):
+async def create_user(user: dict, response: Response, user_repo: UserRepository = Depends(get_user_repository)):
+    """
+    Accept dict with name, email, password. Only return name and id in API.
+    """
     try:
-        new_user = await user_repo.create(user.name)
+        new_user = await user_repo.create(user["name"], user["email"], user["password"])
         return {"user": UserSchema.from_db_model(new_user)}
-    except IntegrityError as e:
+    except IntegrityError:
         response.status_code = 409
         return {"detail": "Item already exists"}
 
