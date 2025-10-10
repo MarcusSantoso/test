@@ -21,6 +21,14 @@ async def create_user(user: UserSchema, response: Response, user_repo: UserRepos
         response.status_code = 409
         return {"detail": "Item already exists"}
 
+@app.post("/users/delete")
+async def delete_user(user: UserSchema, response: Response, user_repo: UserRepository = Depends(get_user_repository)):
+    was_deleted = await user_repo.delete(user.name)
+    if not was_deleted:
+        response.status_code = 404
+        return {"detail": "User not found"}
+    return {"detail": "User deleted"}
+
 @app.get("/users/")
 async def list_users(user_repo: UserRepository = Depends(get_user_repository)):
 

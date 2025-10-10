@@ -34,7 +34,7 @@ class UserRepository:
             self.session.rollback()
             raise
 
-    async def delete(self, name: str) -> None:
+    async def delete(self, name: str) -> bool:
         try:
             stmt = delete(User).where(User.name == name)
             result = self.session.execute(stmt)
