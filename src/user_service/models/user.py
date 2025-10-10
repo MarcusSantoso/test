@@ -26,15 +26,17 @@ class UserRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    async def create(self, name: str, email: str, password: str) -> User: 
-        hashed_password = hashlib.sha256(password.encode()).hexdigest() 
+    async def create(self, name: str, email: str, password: str) -> User:
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
         try:
-            self.session.execute(
-                insert(User),
-                [{"name": name, "email": email, "password": hashed_password}]
-            )
+            stmt = insert(User).values(
+                name=name,
+                email=email,
+                password=hashed_password
+            ).returning(User)
+            result = self.session.execute(stmt)
             self.session.commit()
-            return User(name=name)
+            return result.scalar_one()
         except IntegrityError:
             self.session.rollback()
             raise
@@ -47,7 +49,7 @@ class UserRepository:
             stmt = delete(User).where(User.name == name)
             result = self.session.execute(stmt)
             self.session.commit()
-            return result
+            return result.rowcount > 0
         except Exception:
             self.session.rollback()
             raise
@@ -79,3 +81,8 @@ class UserSchema(BaseModel):
         """Create a UserSchema from a User"""
         return cls(name=user.name, id=getattr(user, "id", None))
 
+
+class UserCreateSchema(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
