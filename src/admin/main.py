@@ -15,10 +15,11 @@ logger = logging.getLogger('uvicorn.error')
 Page_Size = 100
 
 @ui.refreshable
-async def user_list(user_repo: UserRepository, page: int = 1) -> None:
+async def user_list(user_repo: UserRepository, page: int = 1, search_term: str = "") -> None:
 
     # Fetch only a page of users
     offset = (page - 1) * PAGE_SIZE
+    total = await user_repo.count(search=search_term)
     user_models = await user_repo.get_many(limit=PAGE_SIZE, offset=offset, search=search_term)
     users = [UserSchema.from_db_model(model).model_dump() for model in user_models]
 
@@ -37,8 +38,8 @@ async def user_list(user_repo: UserRepository, page: int = 1) -> None:
             # have to refresh to see updates???
         user_list.refresh(page=page, search_term=search_term)
 
-    button = ui.button(on_click=delete, icon='delete')
-    button.disable()
+    delete_btn = ui.button(on_click=delete, icon='delete')
+    delete_btn.disable()
     
     def toggle_delete_button(e):
         nonlocal selected
@@ -56,10 +57,11 @@ async def user_list(user_repo: UserRepository, page: int = 1) -> None:
     table.set_selection('multiple')
 
     # Pagination controls
-    with ui.row():
+    with ui.row().classes('items-center mt-4'):
         if page > 1:
             ui.button('Prev', on_click=lambda: user_list.refresh(page - 1, search_term))
-        ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term))
+        if offset + PAGE_SIZE < total:
+            ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term))
 
 @ui.page("/")
 async def index(user_repo: UserRepository = Depends(get_user_repository)):
@@ -76,8 +78,11 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             ui.notify(f"Could not create user '{value}': {e}")
         finally:
             name.value = ""
-            user_list.refresh()
+            user_list.refresh(page=1, search_term=search.value or "")
 
+    async def apply_search():
+        user_list.refresh(page=1, search_term=search.value or "")
+        
     with ui.column().classes('mx-auto w-full max-w-xl'):
         with ui.row().classes('w-full items-center gap-2'):
             name = ui.input(label='Name').props('outlined')
