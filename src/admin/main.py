@@ -12,15 +12,17 @@ from user_service.models.user import UserRepository, UserSchema, get_user_reposi
 
 logger = logging.getLogger('uvicorn.error')
 
+Page_Size = 100
+
 @ui.refreshable
-async def user_list(user_repo: UserRepository) -> None:
+async def user_list(user_repo: UserRepository, page: int = 1) -> None:
 
-    user_models = await user_repo.get_all()
-    users = []
-    for model in user_models:
-        users.append(UserSchema.from_db_model(model).model_dump())
+    # Fetch only a page of users
+    offset = (page - 1) * PAGE_SIZE
+    user_models = await user_repo.get_many(limit=PAGE_SIZE, offset=offset, search=search_term)
+    users = [UserSchema.from_db_model(model).model_dump() for model in user_models]
 
-    ui.label("All Users")
+    ui.label(f"All Users (page {page}), total {total})")
 
     selected = []
 
@@ -33,7 +35,7 @@ async def user_list(user_repo: UserRepository) -> None:
             else:
                 ui.notify(f"Unable to delete user `{user['name']}'")
             # have to refresh to see updates???
-        user_list.refresh()
+        user_list.refresh(page=page, search_term=search_term)
 
     button = ui.button(on_click=delete, icon='delete')
     button.disable()
@@ -41,10 +43,10 @@ async def user_list(user_repo: UserRepository) -> None:
     def toggle_delete_button(e):
         nonlocal selected
         selected = e.selection
-        if len(e.selection) > 0:
-            button.enable()
+        if selected:
+            delete_btn.enable()
         else:
-            button.disable()
+            delete_btn.disable()
 
 
     columns = [{'name': 'name', 'label': 'Name', 'field': 'name', 'required': True, 'align': 'left'}]
@@ -53,6 +55,11 @@ async def user_list(user_repo: UserRepository) -> None:
                      on_select=toggle_delete_button)
     table.set_selection('multiple')
 
+    # Pagination controls
+    with ui.row():
+        if page > 1:
+            ui.button('Prev', on_click=lambda: user_list.refresh(page - 1, search_term))
+        ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term))
 
 @ui.page("/")
 async def index(user_repo: UserRepository = Depends(get_user_repository)):
@@ -71,10 +78,13 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             name.value = ""
             user_list.refresh()
 
-    with ui.column().classes('mx-auto'):
-        # tailwind
-        with ui.row().classes('w-full items-center px-4'):
-            name = ui.input(label='Name')
-            ui.button(on_click=create, icon='add')
-        await user_list(user_repo)
+    with ui.column().classes('mx-auto w-full max-w-xl'):
+        with ui.row().classes('w-full items-center gap-2'):
+            name = ui.input(label='Name').props('outlined')
+            ui.button('Add', on_click=create, icon='add')
+        with ui.row().classes('w-full items-center gap-2 mt-4'):
+            search = ui.input('Search users...').props('outlined')
+            ui.button('Search', on_click=apply_search, icon='search')
+
+        await user_list(user_repo, page=1)
 
