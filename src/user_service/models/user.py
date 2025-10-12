@@ -43,7 +43,25 @@ class UserRepository:
         except Exception:
             self.session.rollback()
             raise
+            
+    async def get_many(self, limit: int = 100, offset: int = 0, search: str | None = None) -> list[User]:
+        """Get a limited number of users, optionally filtered by name."""
+        stmt = select(User)
+        if search:
+            stmt = stmt.where(User.name.ilike(f"%{search}%"))
+        stmt = stmt.order_by(User.name).limit(limit).offset(offset)
+        users = self.session.scalars(stmt).all()
+        return users
 
+    async def count(self, search: str | None = None) -> int:
+        """Count total users, optionally filtered by name."""
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(User)
+        if search:
+            stmt = stmt.where(User.name.ilike(f"%{search}%"))
+        total = self.session.scalar(stmt)
+        return total
+        
     async def get_all(self) -> list[User]:
         """Get all users"""
         users = self.session.scalars(select(User)).all()
