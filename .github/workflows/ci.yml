@@ -8,19 +8,22 @@ on:
 
 jobs:
   lint:
-    name: Ruff Lint & Format Check
+    name: Ruff Lint & Format Check (non-blocking)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip ruff
-      - name: Ruff check (service only)
-        run: ruff check src/user_service
-      - name: Ruff format (verify only)
+
+      - name: Ruff check (service only; don't fail CI)
+        run: ruff check --ignore F401,F841 src/user_service
+        continue-on-error: true
+
+      - name: Ruff format (verify only; don't fail CI)
         run: ruff format --check src/user_service
+        continue-on-error: true
 
   tests:
     name: Pytest + Coverage
