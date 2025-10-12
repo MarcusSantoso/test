@@ -12,15 +12,17 @@ from user_service.models.user import UserRepository, UserSchema, get_user_reposi
 
 logger = logging.getLogger('uvicorn.error')
 
+Page_Size = 100
+
 @ui.refreshable
-async def user_list(user_repo: UserRepository) -> None:
+async def user_list(user_repo: UserRepository, page: int = 1) -> None:
 
-    user_models = await user_repo.get_all()
-    users = []
-    for model in user_models:
-        users.append(UserSchema.from_db_model(model).model_dump())
+    # Fetch only a page of users
+    offset = (page - 1) * PAGE_SIZE
+    user_models = await user_repo.get_many(limit=PAGE_SIZE, offset=offset)
+    users = [UserSchema.from_db_model(model).model_dump() for model in user_models]
 
-    ui.label("All Users")
+    ui.label(f"All Users (page {page})")
 
     selected = []
 
@@ -41,10 +43,7 @@ async def user_list(user_repo: UserRepository) -> None:
     def toggle_delete_button(e):
         nonlocal selected
         selected = e.selection
-        if len(e.selection) > 0:
-            button.enable()
-        else:
-            button.disable()
+        button.enabled = bool(selected)
 
 
     columns = [{'name': 'name', 'label': 'Name', 'field': 'name', 'required': True, 'align': 'left'}]
@@ -53,6 +52,11 @@ async def user_list(user_repo: UserRepository) -> None:
                      on_select=toggle_delete_button)
     table.set_selection('multiple')
 
+    # Pagination controls
+    with ui.row():
+        if page > 1:
+            ui.button('Prev', on_click=lambda: user_list.refresh(page - 1))
+        ui.button('Next', on_click=lambda: user_list.refresh(page + 1))
 
 @ui.page("/")
 async def index(user_repo: UserRepository = Depends(get_user_repository)):
