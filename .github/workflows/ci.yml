@@ -37,8 +37,9 @@ jobs:
       - name: Run tests with coverage
         run: |
           pytest -q --maxfail=1 --disable-warnings \
-                 --cov=src --cov-report=xml --cov-report=term \
-                 --cov-fail-under=85
+                --cov=src/user_service --cov-branch \
+                --cov-report=xml --cov-report=term \
+                --cov-fail-under=85
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
         with:
