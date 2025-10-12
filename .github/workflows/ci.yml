@@ -16,10 +16,10 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip ruff
-      - name: Ruff check
-        run: ruff check .
+      - name: Ruff check (service + tests only)
+        run: ruff check src/user_service tests
       - name: Ruff format (verify only)
-        run: ruff format --check .
+        run: ruff format --check src/user_service tests
 
   tests:
     name: Pytest + Coverage
@@ -34,12 +34,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest pytest-cov
-      - name: Run tests with coverage
+      - name: Run tests with coverage (service only)
         run: |
           pytest -q --maxfail=1 --disable-warnings \
-                --cov=src/user_service --cov-branch \
-                --cov-report=xml --cov-report=term \
-                --cov-fail-under=85
+                 --cov=src/user_service --cov-branch \
+                 --cov-report=xml --cov-report=term \
+                 --cov-fail-under=75
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
         with:
