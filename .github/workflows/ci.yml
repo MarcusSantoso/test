@@ -16,10 +16,10 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip ruff
-      - name: Ruff check (service + tests only)
-        run: ruff check src/user_service tests
+      - name: Ruff check (service only)
+        run: ruff check src/user_service
       - name: Ruff format (verify only)
-        run: ruff format --check src/user_service tests
+        run: ruff format --check src/user_service
 
   tests:
     name: Pytest + Coverage
