@@ -12,7 +12,7 @@ from user_service.models.user import UserRepository, UserSchema, get_user_reposi
 
 logger = logging.getLogger('uvicorn.error')
 
-Page_Size = 100
+Page_Size = 100 # should be adjustable
 
 @ui.refreshable
 async def user_list(user_repo: UserRepository, page: int = 1, search_term: str = "") -> None:
