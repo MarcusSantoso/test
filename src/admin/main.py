@@ -23,7 +23,7 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
     user_models = await user_repo.get_many(limit=PAGE_SIZE, offset=offset, search=search_term)
     users = [UserSchema.from_db_model(model).model_dump() for model in user_models]
 
-    ui.label(f"All Users (page {page}), total {total})")
+    ui.label(f"Users (page {page}, total {total})")
 
     selected = []
 
@@ -34,7 +34,7 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             if result.rowcount > 0:
                 ui.notify(f"Deleted user '{user['name']}'")
             else:
-                ui.notify(f"Unable to delete user `{user['name']}'")
+                ui.notify(f"Unable to delete user '{user['name']}'")
             # have to refresh to see updates???
         user_list.refresh(page=page, search_term=search_term)
 
