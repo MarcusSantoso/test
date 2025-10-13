@@ -9,8 +9,9 @@ import copy
 
 from user_service.models.user import UserRepository, UserSchema, get_user_repository
 
-
 logger = logging.getLogger('uvicorn.error')
+
+Password = "Nomoredaylightsavings"
 
 Page_Size = 100 # should be adjustable
 
@@ -27,6 +28,23 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
 
     selected = []
 
+    async def confirm_delete():
+        """Open a password dialog before deleting."""
+        with ui.dialog() as dialog, ui.card():
+            ui.label("Enter admin password to confirm deletion:")
+            pwd = ui.input(password=True, password_toggle_button=True).props('outlined')
+            with ui.row():
+                ui.button("Cancel", on_click=dialog.close)
+                ui.button("Confirm", on_click=lambda: check_password(dialog, pwd.value))
+        dialog.open()
+
+    async def check_password(dialog, entered_password: str):
+        if entered_password == Password:
+            dialog.close()
+            await delete_users()
+        else:
+            ui.notify("Incorrect password!")
+
     async def delete():
         nonlocal selected
         for user in selected:
@@ -38,7 +56,7 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             # have to refresh to see updates???
         user_list.refresh(page=page, search_term=search_term)
 
-    delete_btn = ui.button(on_click=delete, icon='delete')
+    delete_btn = ui.button(on_click=confirm_delete, icon='delete', text='Delete selected users')
     delete_btn.disable()
     
     def toggle_delete_button(e):
@@ -50,7 +68,7 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             delete_btn.disable()
 
 
-    columns = [{'name': 'name', 'label': 'Name', 'field': 'name', 'required': True, 'align': 'left'}]
+    columns = [{'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left'}]
     table = ui.table(columns=columns, rows=users,
                      row_key='name',
                      on_select=toggle_delete_button)
