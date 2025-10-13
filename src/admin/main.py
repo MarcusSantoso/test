@@ -41,7 +41,7 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
     async def check_password(dialog, entered_password: str):
         if entered_password == Password:
             dialog.close()
-            await delete_users()
+            await delete()
         else:
             ui.notify("Incorrect password!")
 
