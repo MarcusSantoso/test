@@ -11,6 +11,11 @@ from .models.user import UserRepository, UserSchema, UserCreateSchema, get_user_
 logger = logging.getLogger('uvicorn.error')
 app = FastAPI()
 
+try:
+    ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
+except ImportError:
+    pass
+
 @app.post("/users/", status_code=201)
 async def create_user(user: UserCreateSchema, response: Response, user_repo: UserRepository = Depends(get_user_repository)):
     """
@@ -43,9 +48,3 @@ async def get_user(name: str, user_repo: UserRepository = Depends(get_user_repos
         return {"user": None}
     return {"user": UserSchema.from_db_model(user)}
 
-if __name__ == "__main__":
-    try:
-        from admin.main import ui
-        ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
-    except ImportError:
-        pass
