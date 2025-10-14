@@ -23,6 +23,7 @@ dependencies = [
     "pytest-cov>=7.0.0",
     "email-validator>=2.2.0",
     "sqlalchemy>=2.0.43",
+    "pillow>=11.3.0",
 ]
 
 [build-system]
