@@ -91,8 +91,9 @@ class UserRepository:
                 password=hashed_password
             ).returning(User)
             result = self.session.execute(stmt)
+            user = result.scalar_one()  # Fully consume the result
             self.session.commit()
-            return result.scalar_one()
+            return user
         except IntegrityError:
             self.session.rollback()
             raise
@@ -183,8 +184,9 @@ class UserRepository:
                 .returning(FriendRequest)
             )
             result = self.session.execute(stmt)
+            friend_request = result.scalar_one()  # Fully fetch the result
             self.session.commit()
-            return result.scalar_one()
+            return friend_request
         except Exception:
             self.session.rollback()
             raise
@@ -230,11 +232,12 @@ class UserRepository:
                 .returning(Friendship)
             )
             friendship_result = self.session.execute(friendship_stmt)
+            friendship = friendship_result.scalar_one()  # Fetch result
             self.session.execute(
                 delete(FriendRequest).where(FriendRequest.id == request.id)
             )
             self.session.commit()
-            return friendship_result.scalar_one()
+            return friendship
         except Exception:
             self.session.rollback()
             raise
