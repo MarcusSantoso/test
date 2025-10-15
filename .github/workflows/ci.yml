@@ -39,6 +39,8 @@ jobs:
           pip install -e .
           pip install pytest pytest-cov
       - name: Run tests with coverage (service only)
+        env:
+            PYTHONPATH: src
         run: |
           pytest -q --maxfail=1 --disable-warnings \
                  --cov=src/user_service --cov-branch \
