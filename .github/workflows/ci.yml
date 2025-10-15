@@ -26,7 +26,6 @@ jobs:
         continue-on-error: true
 
   tests:
-    name: Pytest + Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,16 +37,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest pytest-cov
-      - name: Run tests with coverage (service only)
+
+      - name: Run tests (PRs/branches, 75% gate)
+        if: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
         env:
-          PYTHONPATH: ${{ github.workspace }}:src       
+          PYTHONPATH: ${{ github.workspace }}:src
         run: |
           pytest -q --maxfail=1 --disable-warnings \
-                 --cov=src/user_service --cov-branch \
-                 --cov-report=xml --cov-report=term \
-                 --cov-fail-under=75
+                  --cov=src/user_service --cov-branch \
+                  --cov-report=xml --cov-report=term \
+                  --cov-fail-under=75
+
+      - name: Run tests (main branch, 85% gate)
+        if: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}:src
+        run: |
+          pytest -q --maxfail=1 --disable-warnings \
+                  --cov=src/user_service --cov-branch \
+                  --cov-report=xml --cov-report=term \
+                  --cov-fail-under=85
+
       - name: Upload coverage.xml
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
           path: coverage.xml
+
