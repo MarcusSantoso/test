@@ -1,0 +1,3 @@
+[run]
+omit =
+    src/user_service/avatar.py
