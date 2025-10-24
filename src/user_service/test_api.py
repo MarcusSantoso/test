@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 
 from .models.user import Base, UserRepository, get_user_repository
 
-from .api import app
+from .api import app, _rate_windows
 
 
 @pytest.fixture(scope="function")
@@ -35,7 +35,11 @@ def repo(session):
 @pytest.fixture(scope="function")
 def client(repo):
     app.dependency_overrides[get_user_repository] = lambda: repo
-    with TestClient(app) as c:
+    # tests run multiple requests; ensure the in-memory rate limiter is reset per test
+    _rate_windows.clear()
+    # set a header so test requests bypass the in-memory rate limiter and won't
+    # receive 429s during normal unit-test flows
+    with TestClient(app, headers={"X-Bypass-RateLimit": "1"}) as c:
         yield c
 
 
@@ -78,7 +82,7 @@ def test_read_user(client, created_user):
     response = client.get("/users/foo")
     assert response.status_code == 200
     assert response.json() == {
-        "user": {"name": "foo", "id": created_user["id"]}
+        "user": {"name": "foo", "id": created_user["id"], "tier": 1}
     }
 
 
