@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import FastAPI, Depends, Response, HTTPException
 from sqlalchemy.exc import IntegrityError
 import logging
@@ -14,19 +15,22 @@ from .models.user import (
     get_user_repository,
 )
 
-logger = logging.getLogger('uvicorn.error')
+logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
 
 try:
     ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
-except ImportError:
+except Exception:
     pass
 
+
 @app.post("/users/", status_code=201)
-async def create_user(user: UserCreateSchema, response: Response, user_repo: UserRepository = Depends(get_user_repository)):
-    """
-    Accept dict with name, email, password. Only return name and id in API.
-    """
+async def create_user(
+    user: UserCreateSchema,
+    response: Response,
+    user_repo: UserRepository = Depends(get_user_repository),
+):
+    """Accept name/email/password; return only {name,id}."""
     try:
         new_user = await user_repo.create(user.name, user.email, user.password)
         return {"user": UserSchema.from_db_model(new_user)}
@@ -34,18 +38,25 @@ async def create_user(user: UserCreateSchema, response: Response, user_repo: Use
         response.status_code = 409
         return {"detail": "Item already exists"}
 
+
 @app.post("/users/delete")
-async def delete_user(user: UserSchema, response: Response, user_repo: UserRepository = Depends(get_user_repository)):
+async def delete_user(
+    user: UserSchema,
+    response: Response,
+    user_repo: UserRepository = Depends(get_user_repository),
+):
     was_deleted = await user_repo.delete(user.name)
     if not was_deleted:
         response.status_code = 404
         return {"detail": "User not found"}
     return {"detail": "User deleted"}
 
+
 @app.get("/users/")
 async def list_users(user_repo: UserRepository = Depends(get_user_repository)):
     user_models = await user_repo.get_all()
     return {"users": [UserSchema.from_db_model(u) for u in user_models]}
+
 
 @app.get("/users/{name}")
 async def get_user(name: str, user_repo: UserRepository = Depends(get_user_repository)):
@@ -55,15 +66,15 @@ async def get_user(name: str, user_repo: UserRepository = Depends(get_user_repos
     return {"user": UserSchema.from_db_model(user)}
 
 
+# -------- Friend requests / friendships --------
+
 @app.post("/friendships/requests/", status_code=201)
 async def create_friend_request(
     payload: FriendRequestCreateSchema,
     user_repo: UserRepository = Depends(get_user_repository),
 ):
     try:
-        request = await user_repo.create_friend_request(
-            payload.requester, payload.receiver
-        )
+        request = await user_repo.create_friend_request(payload.requester, payload.receiver)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -74,26 +85,21 @@ async def create_friend_request(
     if not requester or not receiver:
         raise HTTPException(status_code=500, detail="Failed to load users for request")
 
-    return {
-        "request": FriendRequestSchema.from_db_model(request, requester, receiver)
-    }
+    return {"request": FriendRequestSchema.from_db_model(request, requester, receiver)}
 
 
 @app.get("/friendships/requests/{name}")
 async def list_friend_requests(
-    name: str,
-    user_repo: UserRepository = Depends(get_user_repository),
+    name: str, user_repo: UserRepository = Depends(get_user_repository)
 ):
     requests = await user_repo.list_friend_requests(name)
-    results: list[FriendRequestSchema] = []
-    for request in requests:
-        requester = await user_repo.get_by_id(request.requester_id)
-        receiver = await user_repo.get_by_id(request.receiver_id)
+    out: list[FriendRequestSchema] = []
+    for req in requests:
+        requester = await user_repo.get_by_id(req.requester_id)
+        receiver = await user_repo.get_by_id(req.receiver_id)
         if requester and receiver:
-            results.append(
-                FriendRequestSchema.from_db_model(request, requester, receiver)
-            )
-    return {"requests": results}
+            out.append(FriendRequestSchema.from_db_model(req, requester, receiver))
+    return {"requests": out}
 
 
 @app.post("/friendships/requests/accept")
@@ -102,9 +108,7 @@ async def accept_friend_request(
     user_repo: UserRepository = Depends(get_user_repository),
 ):
     try:
-        friendship = await user_repo.accept_friend_request(
-            payload.requester, payload.receiver
-        )
+        friendship = await user_repo.accept_friend_request(payload.requester, payload.receiver)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -123,9 +127,7 @@ async def deny_friend_request(
     user_repo: UserRepository = Depends(get_user_repository),
 ):
     try:
-        removed = await user_repo.deny_friend_request(
-            payload.requester, payload.receiver
-        )
+        removed = await user_repo.deny_friend_request(payload.requester, payload.receiver)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -133,21 +135,18 @@ async def deny_friend_request(
 
     if not removed:
         raise HTTPException(status_code=404, detail="No pending friend request found")
-
     return {"detail": "Friend request denied"}
 
 
 @app.get("/friendships/{name}")
 async def list_friendships(
-    name: str,
-    user_repo: UserRepository = Depends(get_user_repository),
+    name: str, user_repo: UserRepository = Depends(get_user_repository)
 ):
     friendships = await user_repo.list_friendships(name)
-    results: list[FriendshipSchema] = []
-    for friendship in friendships:
-        first = await user_repo.get_by_id(friendship.user_id)
-        second = await user_repo.get_by_id(friendship.friend_id)
+    out: list[FriendshipSchema] = []
+    for fr in friendships:
+        first = await user_repo.get_by_id(fr.user_id)
+        second = await user_repo.get_by_id(fr.friend_id)
         if first and second:
-            results.append(FriendshipSchema.from_users(first, second))
-    return {"friendships": results}
-
+            out.append(FriendshipSchema.from_users(first, second))
+    return {"friendships": out}
