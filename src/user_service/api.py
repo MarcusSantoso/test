@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import FastAPI, Depends, Response, HTTPException
+from fastapi import FastAPI, Depends, Response, HTTPException, UploadFile, File
 from sqlalchemy.exc import IntegrityError
 import logging
 
@@ -150,3 +150,52 @@ async def list_friendships(
         if first and second:
             out.append(FriendshipSchema.from_users(first, second))
     return {"friendships": out}
+
+
+@app.put("/users/{user_id}/avatar")
+async def upload_avatar(
+    user_id: int,
+    file: UploadFile = File(...),
+    repo: UserRepository = Depends(get_user_repository)
+):
+
+    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Supported formats: JPEG, PNG, GIF"
+        )
+    
+    try:
+        await repo.upload_avatar(user_id, file)
+        return {"detail": "Avatar uploaded successfully"}
+    
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading avatar: {str(e)}")
+
+
+@app.get("/users/{user_id}/avatar")
+async def get_avatar(
+    user_id: int,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Retrieve a user's profile picture.
+    """
+    try:
+        image_bytes, content_type = await repo.get_avatar(user_id)
+        return Response(content=image_bytes, media_type=content_type)
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving avatar: {str(e)}")
