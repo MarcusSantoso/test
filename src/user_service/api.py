@@ -152,24 +152,147 @@ async def list_friendships(
     return {"friendships": out}
 
 
-@app.put("/users/{user_id}/avatar")
-async def upload_avatar(
+
+
+
+#---------------------------------#
+#--- V2 Avatar API ---#
+#---------------------------------#
+
+@app.get("/v2/users/{user_id}/avatar")
+async def get_avatar_v2(
+    user_id: int,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Retrieve a user's profile picture (v2).
+    """
+    try:
+        image_bytes, content_type = await repo.get_avatar(user_id)
+        return Response(content=image_bytes, media_type=content_type)
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving avatar: {str(e)}")
+
+
+@app.post("/v2/users/{user_id}/avatar", status_code=201)
+async def create_avatar_v2(
     user_id: int,
     file: UploadFile = File(...),
     repo: UserRepository = Depends(get_user_repository)
 ):
-
-    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif"]:
+    """
+    Create a profile picture for a user (v2).
+    Accepts .webp, .png, .jpg files. Images will be cropped to square and resized to 256x256.
+    Returns 409 if avatar already exists (use PUT to update).
+    """
+    # Validate content type
+    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp"]:
         raise HTTPException(
             status_code=400,
-            detail="Invalid image format. Supported formats: JPEG, PNG, GIF"
+            detail="Invalid image format. Supported formats: JPEG, PNG, WEBP"
+        )
+    
+    try:
+        await repo.create_avatar(user_id, file)
+        return {"detail": "Avatar created successfully"}
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    except ValueError as e:
+        if "already exists" in str(e):
+            raise HTTPException(status_code=409, detail="Avatar already exists. Use PUT to update.")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating avatar: {str(e)}")
+
+
+@app.put("/v2/users/{user_id}/avatar")
+async def update_avatar_v2(
+    user_id: int,
+    file: UploadFile = File(...),
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Update (or create) a profile picture for a user (v2).
+    Accepts .webp, .png, .jpg files. Images will be cropped to square and resized to 256x256.
+    """
+    # Validate content type
+    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Supported formats: JPEG, PNG, WEBP"
+        )
+    
+    try:
+        await repo.upload_avatar(user_id, file)
+        return {"detail": "Avatar updated successfully"}
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating avatar: {str(e)}")
+
+
+@app.delete("/v2/users/{user_id}/avatar", status_code=204)
+async def delete_avatar_v2(
+    user_id: int,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Delete a user's profile picture (v2).
+    Returns 204 No Content on success, 404 if avatar or user not found.
+    """
+    try:
+        await repo.delete_avatar(user_id)
+        return Response(status_code=204)
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting avatar: {str(e)}")
+
+
+
+
+
+#---------------------------------#
+#--- Legacy Avatar API ---#
+#---------------------------------#
+
+@app.put("/users/{user_id}/avatar")
+async def upload_avatar_legacy(
+    user_id: int,
+    file: UploadFile = File(...),
+    repo: UserRepository = Depends(get_user_repository)
+):
+    if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Supported formats: JPEG, PNG, GIF, WEBP"
         )
     
     try:
         await repo.upload_avatar(user_id, file)
         return {"detail": "Avatar uploaded successfully"}
     
-    except LookupError as e:
+    except LookupError:
         raise HTTPException(status_code=404, detail="User not found")
     
     except ValueError as e:
@@ -180,13 +303,10 @@ async def upload_avatar(
 
 
 @app.get("/users/{user_id}/avatar")
-async def get_avatar(
+async def get_avatar_legacy(
     user_id: int,
     repo: UserRepository = Depends(get_user_repository)
 ):
-    """
-    Retrieve a user's profile picture.
-    """
     try:
         image_bytes, content_type = await repo.get_avatar(user_id)
         return Response(content=image_bytes, media_type=content_type)

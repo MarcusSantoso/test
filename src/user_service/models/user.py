@@ -25,7 +25,7 @@ from src.shared.database import get_db
 
 Base = declarative_base()
 
-AVATAR_MAX_SIZE = 512
+AVATAR_MAX_SIZE = 256
 AVATAR_DIR = Path("avatars")
 AVATAR_DIR.mkdir(exist_ok=True)
 
@@ -269,11 +269,31 @@ class UserRepository:
     def _normalize_pair(first: int, second: int) -> tuple[int, int]:
         return (first, second) if first < second else (second, first)
     
+    async def create_avatar(self, user_id: int, file: UploadFile) -> None:
+        # Verify user exists
+        user = await self.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        
+        # Check if avatar already exists
+        avatar_path = AVATAR_DIR / f"user_{user_id}.jpg"
+        if avatar_path.exists():
+            raise ValueError("Avatar already exists. Use PUT to update.")
+        
+        # Process and save the avatar
+        await self._process_and_save_avatar(user_id, file)
+
     async def upload_avatar(self, user_id: int, file: UploadFile) -> None:
-        """
-        Upload and process a user's avatar image.
-        Images are cropped to square and resized to save disk space.
-        """
+        # Verify user exists
+        user = await self.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        
+        # Process and save the avatar (overwrite if exists)
+        await self._process_and_save_avatar(user_id, file)
+
+    
+    async def upload_avatar(self, user_id: int, file: UploadFile) -> None:
         # Verify user exists
         user = await self.get_by_id(user_id)
         if not user:
@@ -324,6 +344,80 @@ class UserRepository:
                 raise ValueError("Invalid image file")
             raise ValueError(f"Error processing image: {str(e)}")
         
+    async def _process_and_save_avatar(self, user_id: int, file: UploadFile) -> None:
+        # Validate file extension
+        if not file.filename:
+            raise ValueError("No filename provided")
+        
+        file_ext = file.filename.lower().split('.')[-1]
+        if file_ext not in ['webp', 'png', 'jpg', 'jpeg']:
+            raise ValueError("Invalid file format. Only .webp, .png, and .jpg files are accepted.")
+        
+        # Read the uploaded file
+        contents = await file.read()
+        
+        if not contents:
+            raise ValueError("Empty file uploaded")
+        
+        try:
+            # Open image with PIL
+            image = Image.open(io.BytesIO(contents))
+            
+            # Convert to RGB if necessary (handles RGBA, P, etc.)
+            if image.mode not in ('RGB', 'L'):
+                image = image.convert('RGB')
+            
+            # Crop to square (center crop)
+            width, height = image.size
+            if width != height:
+                # Take the smaller dimension as the crop size
+                crop_size = min(width, height)
+                
+                # Calculate center crop coordinates
+                left = (width - crop_size) // 2
+                top = (height - crop_size) // 2
+                right = left + crop_size
+                bottom = top + crop_size
+                
+                image = image.crop((left, top, right, bottom))
+            
+            # Resize to exact size (256x256)
+            if image.size[0] != AVATAR_MAX_SIZE:
+                image = image.resize(
+                    (AVATAR_MAX_SIZE, AVATAR_MAX_SIZE),
+                    Image.LANCZOS
+                )
+            
+            # Save the processed image
+            avatar_path = AVATAR_DIR / f"user_{user_id}.jpg"
+            image.save(avatar_path, "JPEG", quality=85, optimize=True)
+            
+        except Exception as e:
+            # Handle invalid image files
+            if "cannot identify image file" in str(e).lower() or "image file is truncated" in str(e).lower():
+                raise ValueError("Invalid image file")
+            raise ValueError(f"Error processing image: {str(e)}")
+        
+    async def get_avatar(self, user_id: int) -> tuple[bytes, str]:
+        """
+        Retrieve a user's avatar image.
+        Returns tuple of (image_bytes, content_type).
+        """
+        # Verify user exists
+        user = await self.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        
+        avatar_path = AVATAR_DIR / f"user_{user_id}.jpg"
+        
+        if not avatar_path.exists():
+            raise FileNotFoundError("Avatar not found")
+        
+        with open(avatar_path, "rb") as f:
+            image_bytes = f.read()
+        
+        return image_bytes, "image/jpeg"
+
     async def get_avatar(self, user_id: int) -> tuple[bytes, str]:
         """
         Retrieve a user's avatar image.
@@ -350,12 +444,18 @@ class UserRepository:
         Delete a user's avatar image.
         Returns True if avatar was deleted, False if it didn't exist.
         """
+        # Verify user exists
+        user = await self.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        
         avatar_path = AVATAR_DIR / f"user_{user_id}.jpg"
         
-        if avatar_path.exists():
-            avatar_path.unlink()
-            return True
-        return False
+        if not avatar_path.exists():
+            raise FileNotFoundError("Avatar not found")
+        
+        avatar_path.unlink()
+        return True
 
 
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
