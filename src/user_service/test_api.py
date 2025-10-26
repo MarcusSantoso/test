@@ -232,9 +232,6 @@ def test_deny_friend_request(client, create_user):
     assert accept_missing.status_code == 404
 
 
-
-
-
 #---------------------------------#
 #--- Avatar API Tests ---#
 #---------------------------------#
@@ -490,9 +487,6 @@ def test_avatar_file_size_limit(client, create_user):
     assert response.status_code in [200, 400, 413]
 
 
-
-
-
 #---------------------------------#
 #--- V2 Avatar API Tests ---#
 #---------------------------------#
@@ -728,3 +722,523 @@ def test_v2_png_format_supported(client, create_user, sample_image):
     )
     
     assert response.status_code == 201
+
+
+
+
+
+#---------------------------------#
+#--- V2 Friends API Tests ---#
+#---------------------------------#
+
+
+def test_v2_list_friends_empty(client, create_user):
+    """Test listing friends when user has no friends."""
+    user = create_user("alice")
+    
+    response = client.get(f"/v2/users/{user['id']}/friends/")
+    assert response.status_code == 200
+    assert response.json() == {"friends": []}
+
+
+def test_v2_list_friends_with_friends(client, create_user):
+    """Test listing friends when user has friends."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    carol = create_user("carol")
+    
+    # Create friendships
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "carol"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "carol"}
+    )
+    
+    # Get Alice's friends
+    response = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert response.status_code == 200
+    friends = response.json()["friends"]
+    assert len(friends) == 2
+    
+    # Verify friend data structure and no password
+    for friend in friends:
+        assert "id" in friend
+        assert "name" in friend
+        assert "email" in friend
+        assert "password" not in friend
+    
+    # Verify correct friends
+    friend_names = {f["name"] for f in friends}
+    assert friend_names == {"bob", "carol"}
+
+
+def test_v2_list_friends_nonexistent_user(client):
+    """Test listing friends for a user that doesn't exist."""
+    response = client.get("/v2/users/99999/friends/")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "User not found"}
+
+
+def test_v2_get_friend_by_name_success(client, create_user):
+    """Test getting a specific friend by name."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Get Bob as Alice's friend
+    response = client.get(f"/v2/users/{alice['id']}/friends/bob")
+    assert response.status_code == 200
+    friend = response.json()["friend"]
+    assert friend["name"] == "bob"
+    assert friend["id"] == bob["id"]
+    assert friend["email"] == bob["email"]
+    assert "password" not in friend
+
+
+def test_v2_get_friend_by_name_not_friends(client, create_user):
+    """Test getting a user by name who is not a friend."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Bob exists but is not Alice's friend
+    response = client.get(f"/v2/users/{alice['id']}/friends/bob")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Friendship not found"}
+
+
+def test_v2_get_friend_by_name_user_doesnt_exist(client, create_user):
+    """Test getting a friend when the target user doesn't exist."""
+    alice = create_user("alice")
+    
+    response = client.get(f"/v2/users/{alice['id']}/friends/nonexistent")
+    assert response.status_code == 404
+
+
+def test_v2_get_friend_by_name_requester_doesnt_exist(client):
+    """Test getting a friend when the requesting user doesn't exist."""
+    response = client.get("/v2/users/99999/friends/bob")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "User not found"}
+
+
+def test_v2_get_friend_by_id_success(client, create_user):
+    """Test getting a specific friend by ID."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Get Bob as Alice's friend by ID
+    response = client.get(f"/v2/users/{alice['id']}/friends/{bob['id']}")
+    assert response.status_code == 200
+    friend = response.json()["friend"]
+    assert friend["name"] == "bob"
+    assert friend["id"] == bob["id"]
+    assert friend["email"] == bob["email"]
+    assert "password" not in friend
+
+
+def test_v2_get_friend_by_id_not_friends(client, create_user):
+    """Test getting a user by ID who is not a friend."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Bob exists but is not Alice's friend
+    response = client.get(f"/v2/users/{alice['id']}/friends/{bob['id']}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Friendship not found"}
+
+
+def test_v2_get_friend_by_id_friend_doesnt_exist(client, create_user):
+    """Test getting a friend when the friend ID doesn't exist."""
+    alice = create_user("alice")
+    
+    response = client.get(f"/v2/users/{alice['id']}/friends/99999")
+    assert response.status_code == 404
+
+
+def test_v2_get_friend_by_id_user_doesnt_exist(client):
+    """Test getting a friend when the requesting user doesn't exist."""
+    response = client.get("/v2/users/99999/friends/1")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "User not found"}
+
+
+def test_v2_delete_friend_by_name_success(client, create_user):
+    """Test deleting a friendship by friend name."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Verify friendship exists
+    response = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert len(response.json()["friends"]) == 1
+    
+    # Delete friendship
+    response = client.delete(f"/v2/users/{alice['id']}/friends/bob")
+    assert response.status_code == 204
+    
+    # Verify friendship no longer exists for Alice
+    response = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert response.json()["friends"] == []
+    
+    # Verify friendship no longer exists for Bob
+    response = client.get(f"/v2/users/{bob['id']}/friends/")
+    assert response.json()["friends"] == []
+
+
+def test_v2_delete_friend_by_name_not_friends(client, create_user):
+    """Test deleting a friendship when users are not friends."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    response = client.delete(f"/v2/users/{alice['id']}/friends/bob")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Friendship not found"}
+
+
+def test_v2_delete_friend_by_name_friend_doesnt_exist(client, create_user):
+    """Test deleting a friendship when the friend doesn't exist."""
+    alice = create_user("alice")
+    
+    response = client.delete(f"/v2/users/{alice['id']}/friends/nonexistent")
+    assert response.status_code == 404
+
+
+def test_v2_delete_friend_by_name_user_doesnt_exist(client):
+    """Test deleting a friendship when the requesting user doesn't exist."""
+    response = client.delete("/v2/users/99999/friends/bob")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "User not found"}
+
+
+def test_v2_delete_friend_by_id_success(client, create_user):
+    """Test deleting a friendship by friend ID."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Delete friendship by ID
+    response = client.delete(f"/v2/users/{alice['id']}/friends/{bob['id']}")
+    assert response.status_code == 204
+    
+    # Verify friendship no longer exists
+    response = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert response.json()["friends"] == []
+
+
+def test_v2_delete_friend_by_id_not_friends(client, create_user):
+    """Test deleting a friendship by ID when users are not friends."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    response = client.delete(f"/v2/users/{alice['id']}/friends/{bob['id']}")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Friendship not found"}
+
+
+def test_v2_delete_friend_by_id_friend_doesnt_exist(client, create_user):
+    """Test deleting a friendship when the friend ID doesn't exist."""
+    alice = create_user("alice")
+    
+    response = client.delete(f"/v2/users/{alice['id']}/friends/99999")
+    assert response.status_code == 404
+
+
+def test_v2_delete_friend_by_id_user_doesnt_exist(client):
+    """Test deleting a friendship when the requesting user doesn't exist."""
+    response = client.delete("/v2/users/99999/friends/1")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "User not found"}
+
+
+def test_v2_friendship_is_bidirectional(client, create_user):
+    """Test that friendships are bidirectional."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Both users should see each other as friends
+    alice_friends = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert len(alice_friends.json()["friends"]) == 1
+    assert alice_friends.json()["friends"][0]["name"] == "bob"
+    
+    bob_friends = client.get(f"/v2/users/{bob['id']}/friends/")
+    assert len(bob_friends.json()["friends"]) == 1
+    assert bob_friends.json()["friends"][0]["name"] == "alice"
+
+
+def test_v2_delete_friend_is_bidirectional(client, create_user):
+    """Test that deleting a friendship removes it for both users."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Alice deletes the friendship
+    response = client.delete(f"/v2/users/{alice['id']}/friends/bob")
+    assert response.status_code == 204
+    
+    # Neither user should see the friendship
+    alice_friends = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert alice_friends.json()["friends"] == []
+    
+    bob_friends = client.get(f"/v2/users/{bob['id']}/friends/")
+    assert bob_friends.json()["friends"] == []
+
+
+def test_v2_delete_friend_can_be_done_by_either_party(client, create_user):
+    """Test that either party in a friendship can delete it."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Bob deletes the friendship (not Alice who initiated)
+    response = client.delete(f"/v2/users/{bob['id']}/friends/alice")
+    assert response.status_code == 204
+    
+    # Verify deletion
+    alice_friends = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert alice_friends.json()["friends"] == []
+
+
+def test_v2_user_can_have_multiple_friends(client, create_user):
+    """Test that a user can have multiple friends."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    carol = create_user("carol")
+    dave = create_user("dave")
+    
+    # Create multiple friendships
+    for friend_name in ["bob", "carol", "dave"]:
+        client.post(
+            "/friendships/requests/",
+            json={"requester": "alice", "receiver": friend_name}
+        )
+        client.post(
+            "/friendships/requests/accept",
+            json={"requester": "alice", "receiver": friend_name}
+        )
+    
+    # Alice should have 3 friends
+    response = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert len(response.json()["friends"]) == 3
+    friend_names = {f["name"] for f in response.json()["friends"]}
+    assert friend_names == {"bob", "carol", "dave"}
+
+
+def test_v2_deleting_one_friend_preserves_others(client, create_user):
+    """Test that deleting one friend doesn't affect other friendships."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    carol = create_user("carol")
+    
+    # Create friendships
+    for friend_name in ["bob", "carol"]:
+        client.post(
+            "/friendships/requests/",
+            json={"requester": "alice", "receiver": friend_name}
+        )
+        client.post(
+            "/friendships/requests/accept",
+            json={"requester": "alice", "receiver": friend_name}
+        )
+    
+    # Delete Bob
+    response = client.delete(f"/v2/users/{alice['id']}/friends/bob")
+    assert response.status_code == 204
+    
+    # Alice should still have Carol as a friend
+    response = client.get(f"/v2/users/{alice['id']}/friends/")
+    friends = response.json()["friends"]
+    assert len(friends) == 1
+    assert friends[0]["name"] == "carol"
+
+
+def test_v2_legacy_endpoints_still_work(client, create_user):
+    """Test that legacy friendship endpoints still function."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Use legacy endpoints
+    legacy_response = client.get(f"/friendships/{alice['name']}")
+    assert legacy_response.status_code == 200
+    
+    # Should match v2 endpoint behavior
+    v2_response = client.get(f"/v2/users/{alice['id']}/friends/")
+    assert v2_response.status_code == 200
+
+
+def test_v2_get_friend_returns_same_data_as_list(client, create_user):
+    """Test that getting a single friend returns the same data structure as list."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Get from list
+    list_response = client.get(f"/v2/users/{alice['id']}/friends/")
+    bob_from_list = list_response.json()["friends"][0]
+    
+    # Get individual
+    get_response = client.get(f"/v2/users/{alice['id']}/friends/bob")
+    bob_from_get = get_response.json()["friend"]
+    
+    # Should have same structure and content
+    assert bob_from_list.keys() == bob_from_get.keys()
+    assert bob_from_list == bob_from_get
+
+
+def test_v2_no_password_exposure_in_any_endpoint(client, create_user):
+    """Test that password is never exposed in any friends endpoint."""
+    alice = create_user("alice", password="super_secret_password")
+    bob = create_user("bob", password="another_secret")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Check list endpoint
+    list_response = client.get(f"/v2/users/{alice['id']}/friends/")
+    for friend in list_response.json()["friends"]:
+        assert "password" not in friend
+        assert "super_secret_password" not in str(friend)
+        assert "another_secret" not in str(friend)
+    
+    # Check get by name endpoint
+    name_response = client.get(f"/v2/users/{alice['id']}/friends/bob")
+    friend = name_response.json()["friend"]
+    assert "password" not in friend
+    assert "another_secret" not in str(friend)
+    
+    # Check get by id endpoint
+    id_response = client.get(f"/v2/users/{alice['id']}/friends/{bob['id']}")
+    friend = id_response.json()["friend"]
+    assert "password" not in friend
+    assert "another_secret" not in str(friend)
+
+
+def test_v2_referential_integrity_user_deletion(client, create_user, session):
+    """Test that deleting a user removes their friendships (referential integrity)."""
+    alice = create_user("alice")
+    bob = create_user("bob")
+    
+    # Create friendship
+    client.post(
+        "/friendships/requests/",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    client.post(
+        "/friendships/requests/accept",
+        json={"requester": "alice", "receiver": "bob"}
+    )
+    
+    # Verify friendship exists
+    response = client.get(f"/v2/users/{bob['id']}/friends/")
+    assert len(response.json()["friends"]) == 1
+    
+    # Delete Alice
+    client.post("/users/delete", json={"name": "alice"})
+    
+    # Bob should have no friends now
+    response = client.get(f"/v2/users/{bob['id']}/friends/")
+    assert response.json()["friends"] == []
+
+
+def test_v2_cannot_get_self_as_friend(client, create_user):
+    """Test that a user cannot appear as their own friend."""
+    alice = create_user("alice")
+    
+    # Try to get self as friend
+    response = client.get(f"/v2/users/{alice['id']}/friends/alice")
+    assert response.status_code == 404
+    
+    response = client.get(f"/v2/users/{alice['id']}/friends/{alice['id']}")
+    assert response.status_code == 404
