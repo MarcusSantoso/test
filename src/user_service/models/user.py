@@ -396,6 +396,174 @@ class UserRepository:
         )
         self.session.commit()
         return result.rowcount > 0
+
+
+# ---- V2 Friend Requests API methods ----
+
+    async def get_incoming_requests_v2(self, user_id: int) -> list[FriendRequest]:
+        """Get all incoming friend requests for a user."""
+        user = await self.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        
+        stmt = select(FriendRequest).where(FriendRequest.receiver_id == user_id)
+        return self.session.scalars(stmt).all()
+
+    async def get_outgoing_requests_v2(self, user_id: int) -> list[FriendRequest]:
+        """Get all outgoing friend requests for a user."""
+        user = await self.get_by_id(user_id)
+        if not user:
+            raise LookupError("User not found")
+        
+        stmt = select(FriendRequest).where(FriendRequest.requester_id == user_id)
+        return self.session.scalars(stmt).all()
+
+    async def create_friend_request_v2(self, requester_id: int, receiver_id: int) -> FriendRequest:
+        """Create a friend request between two users."""
+        if requester_id == receiver_id:
+            raise ValueError("Cannot send a friend request to yourself")
+        
+        requester = await self.get_by_id(requester_id)
+        receiver = await self.get_by_id(receiver_id)
+        
+        if not requester:
+            raise LookupError("User not found")
+        if not receiver:
+            raise LookupError("Receiver not found")
+        
+        # Check if they're already friends
+        if await self.are_friends_by_ids(requester_id, receiver_id):
+            raise ValueError("Users are already friends")
+        
+        # Check if a request already exists (either direction)
+        existing = self.session.scalar(
+            select(FriendRequest).where(
+                or_(
+                    and_(
+                        FriendRequest.requester_id == requester_id,
+                        FriendRequest.receiver_id == receiver_id,
+                    ),
+                    and_(
+                        FriendRequest.requester_id == receiver_id,
+                        FriendRequest.receiver_id == requester_id,
+                    ),
+                )
+            )
+        )
+        if existing:
+            raise ValueError("A friend request already exists between these users")
+        
+        result = self.session.execute(
+            insert(FriendRequest)
+            .values(requester_id=requester_id, receiver_id=receiver_id)
+            .returning(FriendRequest)
+        )
+        request = result.scalar_one()
+        self.session.commit()
+        return request
+
+    async def accept_friend_request_v2(self, receiver_id: int, requester_id: int) -> Friendship:
+        """Accept a friend request. Only the receiver can accept."""
+        if receiver_id == requester_id:
+            raise ValueError("Cannot accept a request from yourself")
+        
+        receiver = await self.get_by_id(receiver_id)
+        requester = await self.get_by_id(requester_id)
+        
+        if not receiver:
+            raise LookupError("User not found")
+        if not requester:
+            raise LookupError("Requester not found")
+        
+        # Find the pending request (must be requester -> receiver)
+        pending = self.session.scalar(
+            select(FriendRequest).where(
+                and_(
+                    FriendRequest.requester_id == requester_id,
+                    FriendRequest.receiver_id == receiver_id,
+                )
+            )
+        )
+        
+        if not pending:
+            raise LookupError("No pending friend request found")
+        
+        # Normalize IDs for friendship storage
+        a, b = self._normalize_pair(requester_id, receiver_id)
+        
+        # Check if already friends (shouldn't happen, but safety check)
+        already = self.session.scalar(
+            select(Friendship).where(and_(Friendship.user_id == a, Friendship.friend_id == b))
+        )
+        if already:
+            self.session.execute(delete(FriendRequest).where(FriendRequest.id == pending.id))
+            self.session.commit()
+            raise ValueError("Users are already friends")
+        
+        # Create friendship
+        result = self.session.execute(
+            insert(Friendship).values(user_id=a, friend_id=b).returning(Friendship)
+        )
+        friendship = result.scalar_one()
+        
+        # Delete the request
+        self.session.execute(delete(FriendRequest).where(FriendRequest.id == pending.id))
+        self.session.commit()
+        
+        return friendship
+
+    async def deny_friend_request_v2(self, receiver_id: int, requester_id: int) -> bool:
+        """Deny a friend request. Only the receiver can deny."""
+        receiver = await self.get_by_id(receiver_id)
+        requester = await self.get_by_id(requester_id)
+        
+        if not receiver:
+            raise LookupError("User not found")
+        if not requester:
+            raise LookupError("Requester not found")
+        
+        result = self.session.execute(
+            delete(FriendRequest).where(
+                and_(
+                    FriendRequest.requester_id == requester_id,
+                    FriendRequest.receiver_id == receiver_id,
+                )
+            )
+        )
+        self.session.commit()
+        return result.rowcount > 0
+
+    async def delete_friend_request_v2(self, user_id: int, other_id: int) -> bool:
+        """
+        Delete a friend request between two users.
+        Can be called by either the requester (to cancel) or receiver (to reject).
+        """
+        user = await self.get_by_id(user_id)
+        other = await self.get_by_id(other_id)
+        
+        if not user:
+            raise LookupError("User not found")
+        if not other:
+            raise LookupError("Other user not found")
+        
+        # Try to delete in either direction
+        result = self.session.execute(
+            delete(FriendRequest).where(
+                or_(
+                    and_(
+                        FriendRequest.requester_id == user_id,
+                        FriendRequest.receiver_id == other_id,
+                    ),
+                    and_(
+                        FriendRequest.requester_id == other_id,
+                        FriendRequest.receiver_id == user_id,
+                    ),
+                )
+            )
+        )
+        self.session.commit()
+        return result.rowcount > 0
+
     
     # ---- Avatar methods ----
     
@@ -616,3 +784,41 @@ class FriendSchema(BaseModel):
     @classmethod
     def from_db_model(cls, user: User) -> "FriendSchema":
         return cls(id=user.id, name=user.name, email=user.email)
+    
+
+class FriendRequestSchemaV2(BaseModel):
+    """Schema for friend request in v2 API - includes full user objects."""
+    id: int
+    requester: FriendSchema
+    receiver: FriendSchema
+
+    @classmethod
+    def from_db_model(cls, request: FriendRequest, requester: User, receiver: User) -> "FriendRequestSchemaV2":
+        return cls(
+            id=request.id,
+            requester=FriendSchema.from_db_model(requester),
+            receiver=FriendSchema.from_db_model(receiver)
+        )
+
+
+class FriendRequestCreateSchemaV2(BaseModel):
+    """Schema for creating a friend request in v2 API."""
+    receiver_id: int
+
+
+class FriendRequestActionSchemaV2(BaseModel):
+    """Schema for accepting/denying a friend request in v2 API."""
+    action: str
+
+
+class FriendshipSchemaV2(BaseModel):
+    """Schema for friendship in v2 API - includes full user objects."""
+    user: FriendSchema
+    friend: FriendSchema
+
+    @classmethod
+    def from_users(cls, user: User, friend: User) -> "FriendshipSchemaV2":
+        return cls(
+            user=FriendSchema.from_db_model(user),
+            friend=FriendSchema.from_db_model(friend)
+        )
