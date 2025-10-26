@@ -14,6 +14,10 @@ from .models.user import (
     FriendshipSchema,
     FriendSchema,
     get_user_repository,
+    FriendRequestSchemaV2,
+    FriendRequestCreateSchemaV2,
+    FriendRequestActionSchemaV2,
+    FriendshipSchemaV2,
 )
 
 logger = logging.getLogger("uvicorn.error")
@@ -153,6 +157,9 @@ async def list_friendships(
     return {"friendships": out}
 
 
+
+
+
 #---------------------------------#
 #--- V2 Friends API ---#
 #---------------------------------#
@@ -237,6 +244,9 @@ async def delete_friend_v2(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting friendship: {str(e)}")
+
+
+
 
 
 #---------------------------------#
@@ -351,6 +361,160 @@ async def delete_avatar_v2(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting avatar: {str(e)}")
+    
+
+
+
+
+#---------------------------------#
+#--- V2 Friend Requests API ---#
+#---------------------------------#
+
+@app.get("/v2/users/{user_id}/friend-requests/")
+async def list_friend_requests_v2(
+    user_id: int,
+    q: str,  # "incoming" or "outgoing"
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    List friend requests for a user (v2).
+    Query parameter 'q' must be either 'incoming' or 'outgoing'.
+    """
+    if q not in ["incoming", "outgoing"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameter 'q' must be 'incoming' or 'outgoing'"
+        )
+    
+    try:
+        if q == "incoming":
+            requests = await repo.get_incoming_requests_v2(user_id)
+        else:  # outgoing
+            requests = await repo.get_outgoing_requests_v2(user_id)
+        
+        # Build response with full user objects
+        out: list[FriendRequestSchemaV2] = []
+        for req in requests:
+            requester = await repo.get_by_id(req.requester_id)
+            receiver = await repo.get_by_id(req.receiver_id)
+            if requester and receiver:
+                out.append(FriendRequestSchemaV2.from_db_model(req, requester, receiver))
+        
+        return {"requests": out}
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing friend requests: {str(e)}")
+
+
+@app.post("/v2/users/{user_id}/friend-requests/", status_code=201)
+async def create_friend_request_v2(
+    user_id: int,
+    payload: FriendRequestCreateSchemaV2,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Create a friend request from user_id to receiver_id (v2).
+    """
+    try:
+        request = await repo.create_friend_request_v2(user_id, payload.receiver_id)
+        
+        requester = await repo.get_by_id(request.requester_id)
+        receiver = await repo.get_by_id(request.receiver_id)
+        
+        if not requester or not receiver:
+            raise HTTPException(status_code=500, detail="Failed to load users for request")
+        
+        return {"request": FriendRequestSchemaV2.from_db_model(request, requester, receiver)}
+    
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating friend request: {str(e)}")
+
+
+@app.patch("/v2/users/{user_id}/friend-requests/{other_id}")
+async def update_friend_request_v2(
+    user_id: int,
+    other_id: int,
+    payload: FriendRequestActionSchemaV2,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Accept or deny a friend request (v2).
+    user_id is the receiver, other_id is the requester.
+    Action must be "accept" or "deny".
+    """
+    if payload.action not in ["accept", "deny"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Action must be 'accept' or 'deny'"
+        )
+    
+    try:
+        if payload.action == "accept":
+            friendship = await repo.accept_friend_request_v2(user_id, other_id)
+            
+            first = await repo.get_by_id(friendship.user_id)
+            second = await repo.get_by_id(friendship.friend_id)
+            
+            if not first or not second:
+                raise HTTPException(status_code=500, detail="Failed to load friendship users")
+            
+            return {"friendship": FriendshipSchemaV2.from_users(first, second)}
+        
+        else:  # deny
+            removed = await repo.deny_friend_request_v2(user_id, other_id)
+            
+            if not removed:
+                raise HTTPException(status_code=404, detail="No pending friend request found")
+            
+            return {"detail": "Friend request denied"}
+    
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating friend request: {str(e)}")
+
+
+@app.delete("/v2/users/{user_id}/friend-requests/{other_id}", status_code=204)
+async def delete_friend_request_v2(
+    user_id: int,
+    other_id: int,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Delete a friend request (v2).
+    Can be called by either the requester (to cancel) or receiver (to reject).
+    """
+    try:
+        deleted = await repo.delete_friend_request_v2(user_id, other_id)
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Friend request not found")
+        
+        return Response(status_code=204)
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting friend request: {str(e)}")
+    
+
+
 
 
 #---------------------------------#
