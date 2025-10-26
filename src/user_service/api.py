@@ -12,6 +12,7 @@ from .models.user import (
     FriendRequestDecisionSchema,
     FriendRequestSchema,
     FriendshipSchema,
+    FriendSchema,
     get_user_repository,
 )
 
@@ -66,7 +67,7 @@ async def get_user(name: str, user_repo: UserRepository = Depends(get_user_repos
     return {"user": UserSchema.from_db_model(user)}
 
 
-# -------- Friend requests / friendships --------
+# -------- Friend requests / friendships (Legacy) --------
 
 @app.post("/friendships/requests/", status_code=201)
 async def create_friend_request(
@@ -152,7 +153,90 @@ async def list_friendships(
     return {"friendships": out}
 
 
+#---------------------------------#
+#--- V2 Friends API ---#
+#---------------------------------#
 
+@app.get("/v2/users/{user_id}/friends/")
+async def list_friends_v2(
+    user_id: int,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    List all friends for a user (v2).
+    Returns friend data without password hashes.
+    """
+    try:
+        friends = await repo.list_friends_v2(user_id)
+        return {"friends": [FriendSchema.from_db_model(f) for f in friends]}
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing friends: {str(e)}")
+
+
+@app.get("/v2/users/{user_id}/friends/{friend_identifier}")
+async def get_friend_v2(
+    user_id: int,
+    friend_identifier: str,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Get a specific friend by name or ID (v2).
+    Automatically detects if identifier is numeric (ID) or string (name).
+    """
+    try:
+        # Try to parse as int for ID lookup
+        try:
+            friend_id = int(friend_identifier)
+            friend = await repo.get_friend_by_id_v2(user_id, friend_id)
+        except ValueError:
+            # Not an int, treat as name
+            friend = await repo.get_friend_by_name_v2(user_id, friend_identifier)
+        
+        if not friend:
+            raise HTTPException(status_code=404, detail="Friendship not found")
+        
+        return {"friend": FriendSchema.from_db_model(friend)}
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving friend: {str(e)}")
+
+
+@app.delete("/v2/users/{user_id}/friends/{friend_identifier}", status_code=204)
+async def delete_friend_v2(
+    user_id: int,
+    friend_identifier: str,
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Delete a friendship by friend name or ID (v2).
+    Removes the friendship for both users.
+    """
+    try:
+        # Try to parse as int for ID lookup
+        try:
+            friend_id = int(friend_identifier)
+            deleted = await repo.delete_friend_by_id_v2(user_id, friend_id)
+        except ValueError:
+            # Not an int, treat as name
+            deleted = await repo.delete_friend_by_name_v2(user_id, friend_identifier)
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Friendship not found")
+        
+        return Response(status_code=204)
+    
+    except LookupError:
+        raise HTTPException(status_code=404, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting friendship: {str(e)}")
 
 
 #---------------------------------#
@@ -267,9 +351,6 @@ async def delete_avatar_v2(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting avatar: {str(e)}")
-
-
-
 
 
 #---------------------------------#
