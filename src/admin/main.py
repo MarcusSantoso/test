@@ -24,27 +24,18 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
     total = await user_repo.count(search=search_term)
     user_models = await user_repo.get_many(limit=PAGE_SIZE, offset=offset, search=search_term)
 
-    # Cache user names by id to avoid repeated lookups when building friend lists
-    id_to_name: dict[int, str] = {
-        model.id: model.name for model in user_models if getattr(model, "id", None) is not None
-    }
-
     users = []
     for model in user_models:
         friend_names: list[str] = []
         model_id = getattr(model, "id", None)
         if model_id is not None:
-            friendships = await user_repo.list_friendships(model.name)
-            for friendship in friendships:
-                friend_id = friendship.friend_id if friendship.user_id == model_id else friendship.user_id
-                friend_name = id_to_name.get(friend_id)
-                if friend_name is None:
-                    friend_user = await user_repo.get_by_id(friend_id)
-                    if friend_user and getattr(friend_user, "id", None) is not None:
-                        friend_name = friend_user.name
-                        id_to_name[friend_user.id] = friend_user.name
-                if friend_name:
-                    friend_names.append(friend_name)
+            # Use V2 API method to get friends
+            try:
+                friends = await user_repo.list_friends_v2(model_id)
+                friend_names = [friend.name for friend in friends]
+            except LookupError:
+                # User not found, skip
+                pass
 
         users.append(
             {
@@ -201,6 +192,24 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         finally:
             user_list.refresh(page=page, search_term=search_term)
 
+    async def delete_friendship(user_name: str, friend_name: str):
+        """Delete a friendship using V2 API."""
+        try:
+            user = await user_repo.get_by_name(user_name)
+            if not user:
+                ui.notify(f"User '{user_name}' not found")
+                return
+            
+            deleted = await user_repo.delete_friend_by_name_v2(user.id, friend_name)
+            if deleted:
+                ui.notify(f"Removed friendship: {user_name} ↔ {friend_name}")
+            else:
+                ui.notify(f"Friendship not found")
+        except (ValueError, LookupError) as exc:
+            ui.notify(str(exc))
+        finally:
+            user_list.refresh(page=page, search_term=search_term)
+
     ui.separator().classes('mt-6')
     ui.label("Manage Friendships").classes('text-lg font-semibold mt-2')
     with ui.row().classes('w-full items-center gap-2 mt-2'):
@@ -211,24 +220,14 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
     friend_requests = await user_repo.list_all_friend_requests()
     request_rows: list[dict] = []
     for request in friend_requests:
-        requester_name = id_to_name.get(request.requester_id)
-        if requester_name is None:
-            requester_user = await user_repo.get_by_id(request.requester_id)
-            if requester_user:
-                requester_name = requester_user.name
-                id_to_name[requester_user.id] = requester_user.name
-        receiver_name = id_to_name.get(request.receiver_id)
-        if receiver_name is None:
-            receiver_user = await user_repo.get_by_id(request.receiver_id)
-            if receiver_user:
-                receiver_name = receiver_user.name
-                id_to_name[receiver_user.id] = receiver_user.name
-        if requester_name and receiver_name:
+        requester_user = await user_repo.get_by_id(request.requester_id)
+        receiver_user = await user_repo.get_by_id(request.receiver_id)
+        if requester_user and receiver_user:
             request_rows.append(
                 {
                     "id": request.id,
-                    "requester": requester_name,
-                    "receiver": receiver_name,
+                    "requester": requester_user.name,
+                    "receiver": receiver_user.name,
                 }
             )
 
@@ -250,6 +249,40 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
                 )
     else:
         ui.label("No pending friend requests").classes('text-sm text-gray-500')
+
+    # Display existing friendships with ability to remove them
+    ui.separator().classes('mt-6')
+    ui.label("Existing Friendships").classes('text-md font-medium mt-4')
+    
+    # Get all friendships for users on current page
+    all_friendships: list[dict] = []
+    for model in user_models:
+        model_id = getattr(model, "id", None)
+        if model_id is not None:
+            try:
+                friends = await user_repo.list_friends_v2(model_id)
+                for friend in friends:
+                    # Only show each friendship once (avoid duplicates)
+                    if model.name < friend.name:
+                        all_friendships.append({
+                            "user1": model.name,
+                            "user2": friend.name,
+                        })
+            except LookupError:
+                pass
+    
+    if all_friendships:
+        for friendship in all_friendships:
+            with ui.row().classes('items-center gap-3'):
+                ui.label(f"{friendship['user1']} ↔ {friendship['user2']}")
+                ui.button(
+                    'Remove',
+                    icon='link_off',
+                    color='orange',
+                    on_click=lambda f=friendship: delete_friendship(f['user1'], f['user2'])
+                )
+    else:
+        ui.label("No friendships on this page").classes('text-sm text-gray-500')
 
 @ui.page("/")
 async def index(user_repo: UserRepository = Depends(get_user_repository)):
@@ -294,4 +327,3 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             ui.button('Search', on_click=apply_search, icon='search')
 
         await user_list(user_repo, page=1)
-
