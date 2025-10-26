@@ -154,16 +154,24 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term))
 
     all_user_names = [model.name for model in user_models]
+    all_users_by_name = {model.name: model for model in user_models}
 
     async def send_friend_request():
-        requester = requester_select.value
-        receiver = receiver_select.value
-        if not requester or not receiver:
+        """Send friend request using V2 API."""
+        requester_name = requester_select.value
+        receiver_name = receiver_select.value
+        if not requester_name or not receiver_name:
             ui.notify("Select both requester and receiver")
             return
         try:
-            await user_repo.create_friend_request(requester, receiver)
-            ui.notify(f"Friend request sent: {requester} → {receiver}")
+            requester = await user_repo.get_by_name(requester_name)
+            receiver = await user_repo.get_by_name(receiver_name)
+            if not requester or not receiver:
+                ui.notify("User not found")
+                return
+            
+            await user_repo.create_friend_request_v2(requester.id, receiver.id)
+            ui.notify(f"Friend request sent: {requester_name} → {receiver_name}")
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
@@ -171,20 +179,22 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             receiver_select.value = None
             user_list.refresh(page=page, search_term=search_term)
 
-    async def accept_friend_request(requester: str, receiver: str):
+    async def accept_friend_request(requester_id: int, receiver_id: int, requester_name: str, receiver_name: str):
+        """Accept friend request using V2 API."""
         try:
-            await user_repo.accept_friend_request(requester, receiver)
-            ui.notify(f"{receiver} accepted {requester}'s request")
+            await user_repo.accept_friend_request_v2(receiver_id, requester_id)
+            ui.notify(f"{receiver_name} accepted {requester_name}'s request")
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
             user_list.refresh(page=page, search_term=search_term)
 
-    async def deny_friend_request(requester: str, receiver: str):
+    async def deny_friend_request(requester_id: int, receiver_id: int, requester_name: str, receiver_name: str):
+        """Deny friend request using V2 API."""
         try:
-            removed = await user_repo.deny_friend_request(requester, receiver)
+            removed = await user_repo.deny_friend_request_v2(receiver_id, requester_id)
             if removed:
-                ui.notify(f"{receiver} denied {requester}'s request")
+                ui.notify(f"{receiver_name} denied {requester_name}'s request")
             else:
                 ui.notify("No matching request to deny")
         except (ValueError, LookupError) as exc:
@@ -217,15 +227,18 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         receiver_select = ui.select(all_user_names, label='Receiver').props('outlined use-chips')
         ui.button('Send Friend Request', on_click=send_friend_request, icon='send')
 
-    friend_requests = await user_repo.list_all_friend_requests()
+    # Get ALL friend requests (not just for current page)
+    all_friend_requests = await user_repo.list_all_friend_requests()
     request_rows: list[dict] = []
-    for request in friend_requests:
+    for request in all_friend_requests:
         requester_user = await user_repo.get_by_id(request.requester_id)
         receiver_user = await user_repo.get_by_id(request.receiver_id)
         if requester_user and receiver_user:
             request_rows.append(
                 {
                     "id": request.id,
+                    "requester_id": request.requester_id,
+                    "receiver_id": request.receiver_id,
                     "requester": requester_user.name,
                     "receiver": receiver_user.name,
                 }
@@ -239,13 +252,23 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
                 ui.button(
                     'Accept',
                     icon='check',
-                    on_click=lambda r=row: accept_friend_request(r['requester'], r['receiver'])
+                    on_click=lambda r=row: accept_friend_request(
+                        r['requester_id'], 
+                        r['receiver_id'],
+                        r['requester'],
+                        r['receiver']
+                    )
                 )
                 ui.button(
                     'Deny',
                     icon='close',
                     color='red',
-                    on_click=lambda r=row: deny_friend_request(r['requester'], r['receiver'])
+                    on_click=lambda r=row: deny_friend_request(
+                        r['requester_id'],
+                        r['receiver_id'],
+                        r['requester'],
+                        r['receiver']
+                    )
                 )
     else:
         ui.label("No pending friend requests").classes('text-sm text-gray-500')
