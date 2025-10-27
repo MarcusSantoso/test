@@ -1,9 +1,12 @@
 from typing import List
-from fastapi import FastAPI, Depends, Response, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, Response, HTTPException, UploadFile, File, Request
 from sqlalchemy.exc import IntegrityError
 import logging
 
 from admin.main import ui
+from src.event_service.router import router as event_router
+from src.event_service.analytics_router import router as analytics_router
+from src.event_service.logging import request_event_logger
 from .models.user import (
     UserRepository,
     UserSchema,
@@ -27,6 +30,20 @@ try:
     ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
 except Exception:
     pass
+
+
+@app.middleware("http")
+async def emit_request_events(request: Request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception:
+        await request_event_logger.log_request(request, 500)
+        raise
+    await request_event_logger.log_request(request, response.status_code)
+    return response
+
+app.include_router(event_router, prefix="/v2")
+app.include_router(analytics_router, prefix="/v2")
 
 
 @app.post("/users/", status_code=201)
@@ -323,7 +340,7 @@ async def update_avatar_v2(
     if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp"]:
         raise HTTPException(
             status_code=400,
-            detail="Invalid image format. Supported formats: JPEG, PNG, WEBP"
+            detail="Invalid image format. Supported formats: JPEG, PNG, WEBP"   
         )
     
     try:
