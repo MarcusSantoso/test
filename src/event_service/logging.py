@@ -26,6 +26,8 @@ class RequestEventLogger:
             logger.exception("Failed to log request event", extra={"path": str(request.url)})
 
     async def _write_event(self, request: Request, response_status: int) -> None:
+        if not _should_log_request(request):
+            return
         repo = EventRepository(get_redis())
         when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         payload: dict[str, Any] = {
@@ -37,7 +39,7 @@ class RequestEventLogger:
         event = EventCreateSchema(
             when=when,
             source=str(request.url),
-            type="api-request",
+            type=_event_type_for(request),
             payload=payload,
             user=user,
         )
@@ -45,3 +47,39 @@ class RequestEventLogger:
 
 
 request_event_logger = RequestEventLogger()
+
+
+IGNORED_PREFIXES = (
+    "/admin/_nicegui/",
+    "/_nicegui/",
+    "/static/",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+)
+IGNORED_SUFFIXES = (
+    ".js",
+    ".css",
+    ".ico",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".svg",
+    ".map",
+    ".gif",
+    ".woff",
+    ".woff2",
+)
+
+
+def _should_log_request(request: Request) -> bool:
+    path = request.url.path
+    if any(path.startswith(prefix) for prefix in IGNORED_PREFIXES):
+        return False
+    if any(path.endswith(suffix) for suffix in IGNORED_SUFFIXES):
+        return False
+    return True
+
+
+def _event_type_for(request: Request) -> str:
+    return f"http {request.method.upper()} {request.url.path}"
