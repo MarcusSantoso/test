@@ -18,6 +18,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "fastapi>=0.117.1",
     "nicegui>=2.24.2",
+    "fakeredis>=2.23.3",
     "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.9",
     "redis>=5.1.1",
@@ -41,5 +42,4 @@ addopts = [
 dev = [
     "pytest>=8.4.2",
     "ruff>=0.13.2",
-    "fakeredis>=2.23.3",
 ]
