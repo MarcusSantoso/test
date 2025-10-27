@@ -1,1 +1,73 @@
+from fastapi import FastAPI, Query, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
+from typing import Optional
+from datetime import datetime
+
+app = FastAPI()
+
+@app.get("/v2/events/")
+def query_events(
+    type: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    user: Optional[str] = Query(None),
+    before: Optional[str] = Query(None),
+    after: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Event)
+
+    # Filter by type, source, user
+    if type:
+        query = query.filter(Event.type == type)
+    if source:
+        query = query.filter(Event.source == source)
+    if user:
+        query = query.filter(Event.user == user)
+
+    # Filter by time range
+    filters = []
+    try:
+        if before:
+            before_dt = datetime.strptime(before, "%Y-%m-%d %H:%M:%S")
+            filters.append(Event.when <= before_dt)
+        if after:
+            after_dt = datetime.strptime(after, "%Y-%m-%d %H:%M:%S")
+            filters.append(Event.when >= after_dt)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid datetime format. Use YYYY-MM-DD HH:MM:SS")
+
+    if filters:
+        query = query.filter(and_(*filters))
+
+    # Total count for pagination metadata
+    total = query.with_entities(func.count(Event.id)).scalar()
+
+    # Apply pagination
+    results = query.order_by(Event.when.asc()).offset(offset).limit(limit).all()
+
+    # Calculate next and previous offsets
+    next_offset = offset + limit if offset + limit < total else None
+    previous_offset = offset - limit if offset - limit >= 0 else None
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "next_offset": next_offset,
+        "previous_offset": previous_offset,
+        "events": [
+            {
+                "id": e.id,
+                "when": e.when.strftime("%Y-%m-%d %H:%M:%S"),
+                "source": e.source,
+                "type": e.type,
+                "payload": e.payload,
+                "user": e.user
+            }
+            for e in results
+        ]
+    }
 
