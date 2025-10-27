@@ -11,9 +11,11 @@ from user_service.models.user import UserRepository, get_user_repository
 from src.event_service.repository import EventRepository, get_event_repository
 from src.event_service.analytics import EventAnalyticsService
 from src.event_service.time_utils import format_datetime
+from src.event_service.schemas import EventCreateSchema
 import hashlib
 import json
 from datetime import datetime, date
+from datetime import timezone
 
 logger = logging.getLogger('uvicorn.error')
 
@@ -47,6 +49,28 @@ def _safe_date_input(raw: str | None) -> date | None:
 def _format_payload(payload: dict) -> str:
     text = json.dumps(payload, ensure_ascii=True)
     return text if len(text) <= 120 else f"{text[:117]}..."
+
+
+async def _log_admin_event(
+    event_repo: EventRepository,
+    *,
+    event_type: str,
+    payload: dict,
+    user_id: int | str | None = None,
+    source: str = "/admin",
+) -> None:
+    if not event_repo:
+        return
+    user_value = str(user_id) if user_id is not None else None
+    await event_repo.create(
+        EventCreateSchema(
+            when=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            source=source,
+            type=event_type,
+            payload=payload,
+            user=user_value,
+        )
+    )
 
 
 @ui.refreshable
@@ -149,7 +173,12 @@ async def _render_event_log_page(event_repo: EventRepository) -> None:
     with ui.column().classes("mx-auto w-full max-w-6xl gap-4"):
         with ui.row().classes("items-center justify-between w-full"):
             ui.label("Admin / Event Logs").classes("text-2xl font-semibold")
-        ui.link("Back to Admin", "/").classes("text-primary underline")
+            ui.button(
+                "Back to Admin",
+                icon="arrow_back",
+                color="primary",
+                on_click=lambda: ui.navigate.to("/"),
+            )
 
         with ui.card().classes("w-full"):
             ui.label("Filters").classes("text-lg font-semibold")
@@ -218,16 +247,16 @@ async def events_dashboard(
 ):
     await _render_event_log_page(event_repo)
 
-
-@ui.page("/admin/event-logs")
-async def events_dashboard_alias():
-    ui.label("Redirecting to /admin/event-logs ...")
-    ui.timer(0, lambda: ui.navigate.to("/admin/event-logs"), once=True)
-
 PAGE_SIZE = 100 # should be adjustable
 
 @ui.refreshable
-async def user_list(user_repo: UserRepository, page: int = 1, search_term: str = "") -> None:
+async def user_list(
+    user_repo: UserRepository,
+    page: int = 1,
+    search_term: str = "",
+    *,
+    event_repo: EventRepository | None = None,
+) -> None:
 
     # Fetch only a page of users
     offset = (page - 1) * PAGE_SIZE
@@ -292,20 +321,30 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         # Require the supplied password to match each selected user
         for name in selected_names:
             user = await user_repo.get_by_name(name)
-            if not user or getattr(user, "password", None) != hashed_candidate:
+            if not user:
+                return False
+            stored = getattr(user, "password", None)
+            if stored not in {candidate, hashed_candidate}:
                 return False
         return bool(selected_names)
 
     async def delete():
         nonlocal selected_names
         for name in selected_names:
+            user_model = all_users_by_name.get(name)
             was_deleted = await user_repo.delete(name)
             if was_deleted:
                 ui.notify(f"Deleted user '{name}'")
+                await _log_admin_event(
+                    event_repo,
+                    event_type="admin.user.delete",
+                    payload={"name": name},
+                    user_id=getattr(user_model, "id", None),
+                )
             else:
                 ui.notify(f"Unable to delete user '{name}'")
         selected_names = []
-        user_list.refresh(page=page, search_term=search_term)
+        user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     delete_btn = ui.button(on_click=confirm_delete, icon='delete', text='Delete selected users')
     delete_btn.disable()
@@ -359,9 +398,9 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
     # Pagination controls
     with ui.row().classes('items-center mt-4'):
         if page > 1:
-            ui.button('Prev', on_click=lambda: user_list.refresh(page - 1, search_term))
+            ui.button('Prev', on_click=lambda: user_list.refresh(page - 1, search_term, event_repo=event_repo))
         if offset + PAGE_SIZE < total:
-            ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term))
+            ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term, event_repo=event_repo))
 
     all_user_names = [model.name for model in user_models]
     all_users_by_name = {model.name: model for model in user_models}
@@ -382,22 +421,34 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             
             await user_repo.create_friend_request_v2(requester.id, receiver.id)
             ui.notify(f"Friend request sent: {requester_name} → {receiver_name}")
+            await _log_admin_event(
+                event_repo,
+                event_type="admin.friend_request.create",
+                payload={"requester": requester_name, "receiver": receiver_name},
+                user_id=requester.id,
+            )
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
             requester_select.value = None
             receiver_select.value = None
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     async def accept_friend_request(requester_id: int, receiver_id: int, requester_name: str, receiver_name: str):
         """Accept friend request using V2 API."""
         try:
             await user_repo.accept_friend_request_v2(receiver_id, requester_id)
             ui.notify(f"{receiver_name} accepted {requester_name}'s request")
+            await _log_admin_event(
+                event_repo,
+                event_type="admin.friend_request.accept",
+                payload={"requester": requester_name, "receiver": receiver_name},
+                user_id=receiver_id,
+            )
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     async def deny_friend_request(requester_id: int, receiver_id: int, requester_name: str, receiver_name: str):
         """Deny friend request using V2 API."""
@@ -405,12 +456,18 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             removed = await user_repo.deny_friend_request_v2(receiver_id, requester_id)
             if removed:
                 ui.notify(f"{receiver_name} denied {requester_name}'s request")
+                await _log_admin_event(
+                    event_repo,
+                    event_type="admin.friend_request.deny",
+                    payload={"requester": requester_name, "receiver": receiver_name},
+                    user_id=receiver_id,
+                )
             else:
                 ui.notify("No matching request to deny")
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     async def delete_friendship(user_name: str, friend_name: str):
         """Delete a friendship using V2 API."""
@@ -423,12 +480,18 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             deleted = await user_repo.delete_friend_by_name_v2(user.id, friend_name)
             if deleted:
                 ui.notify(f"Removed friendship: {user_name} ↔ {friend_name}")
+                await _log_admin_event(
+                    event_repo,
+                    event_type="admin.friendship.delete",
+                    payload={"user": user_name, "friend": friend_name},
+                    user_id=user.id,
+                )
             else:
                 ui.notify(f"Friendship not found")
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     ui.separator().classes('mt-6')
     ui.label("Manage Friendships").classes('text-lg font-semibold mt-2')
@@ -518,7 +581,10 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         ui.label("No friendships on this page").classes('text-sm text-gray-500')
 
 @ui.page("/")
-async def index(user_repo: UserRepository = Depends(get_user_repository)):
+async def index(
+    user_repo: UserRepository = Depends(get_user_repository),
+    event_repo: EventRepository = Depends(get_event_repository),
+):
     async def create() -> None:
         value = (name.value or '').strip()
         email_value = (email.value or '').strip()
@@ -534,7 +600,13 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             ui.notify('Please enter a password')
             return
         try:
-            await user_repo.create(name=value, email=email_value, password=password_value)
+            new_user = await user_repo.create(name=value, email=email_value, password=password_value)
+            await _log_admin_event(
+                event_repo,
+                event_type="admin.user.create",
+                payload={"name": value, "email": email_value},
+                user_id=getattr(new_user, "id", None),
+            )
             ui.notify(f"Created user '{value}'")
         except Exception as e:
             logger.exception("Create failed")
@@ -543,22 +615,25 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             name.value = ""
             email.value = ""
             password.value = ""
-            user_list.refresh(page=1, search_term=search.value or "")
+            user_list.refresh(page=1, search_term=search.value or "", event_repo=event_repo)
 
     async def apply_search():
-        user_list.refresh(page=1, search_term=search.value or "")
+        user_list.refresh(page=1, search_term=search.value or "", event_repo=event_repo)
         
     with ui.column().classes('mx-auto w-full max-w-xl'):
-        ui.link('Open Event Logs', '/event-logs').classes('self-end text-primary underline')
         with ui.row().classes('w-full items-center gap-2'):
             name = ui.input(label='Name').props('outlined')
             email = ui.input(label='Email').props('outlined')
         with ui.row().classes('w-full items-center gap-2 mt-2'):
             password = ui.input(label='Password', password=True, password_toggle_button=True).props('outlined')
             ui.button('Add', on_click=create, icon='add')
-        with ui.row().classes('w-full items-center gap-2 mt-4'):
+        with ui.row().classes('w-full items-center gap-2 mt-4 span-full'):
             search = ui.input('Search users...').props('outlined')
             ui.button('Search', on_click=apply_search, icon='search')
-            ui.button('Open Event Logs', on_click=lambda: ui.open('/event-logs')).classes('ml-auto')
+            ui.button(
+                'Open Event Logs',
+                icon='event',
+                on_click=lambda: ui.navigate.to('/event-logs'),
+            ).classes('ml-auto text-primary')
 
-        await user_list(user_repo, page=1)
+        await user_list(user_repo, page=1, event_repo=event_repo)
