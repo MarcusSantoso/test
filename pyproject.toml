@@ -20,6 +20,7 @@ dependencies = [
     "nicegui>=2.24.2",
     "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.9",
+    "redis>=5.1.1",
     "pytest-cov>=7.0.0",
     "sqlalchemy>=2.0.43",
     "passlib[bcrypt]>=1.7.4",
@@ -40,4 +41,5 @@ addopts = [
 dev = [
     "pytest>=8.4.2",
     "ruff>=0.13.2",
+    "fakeredis>=2.23.3",
 ]

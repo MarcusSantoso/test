@@ -14,18 +14,26 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data # Persists data to a named volume
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
   web:
     build: .
     depends_on:
       db:
         condition: service_healthy
         restart: true
+      redis:
+        condition: service_started
     ports:
       - "8000:8000"
     environment:
       DATABASE_HOST: db # The service name of your Postgres container
       DATABASE_USER: ${POSTGRES_USER}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_TTL_SECONDS: ${AUTH_TTL_SECONDS:-300}
+      REDIS_URL: redis://redis:6379/
     develop:
       watch:
         - action: sync+restart
