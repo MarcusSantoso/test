@@ -8,16 +8,255 @@ import copy
 
 
 from user_service.models.user import UserRepository, get_user_repository
+from src.event_service.repository import EventRepository, get_event_repository
+from src.event_service.analytics import EventAnalyticsService
+from src.event_service.time_utils import format_datetime
+from src.event_service.schemas import EventCreateSchema
 import hashlib
+import json
+from datetime import datetime, date
+from datetime import timezone
 
 logger = logging.getLogger('uvicorn.error')
 
 Password = "Nomoredaylightsavings"
+EVENT_LOG_PAGE_SIZE = 200
+
+
+def _safe_datetime_input(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        # datetime-local inputs look like "2025-10-15T13:32"
+        if len(raw) == 16:
+            raw = f"{raw}:00"
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        ui.notify("Invalid datetime filter. Use the picker to select a valid value.")
+        return None
+
+
+def _safe_date_input(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        ui.notify("Invalid date value.")
+        return None
+
+
+def _format_payload(payload: dict) -> str:
+    text = json.dumps(payload, ensure_ascii=True)
+    return text if len(text) <= 120 else f"{text[:117]}..."
+
+
+async def _log_admin_event(
+    event_repo: EventRepository,
+    *,
+    event_type: str,
+    payload: dict,
+    user_id: int | str | None = None,
+    source: str = "/admin",
+) -> None:
+    if not event_repo:
+        return
+    user_value = str(user_id) if user_id is not None else None
+    await event_repo.create(
+        EventCreateSchema(
+            when=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            source=source,
+            type=event_type,
+            payload=payload,
+            user=user_value,
+        )
+    )
+
+
+@ui.refreshable
+async def event_log_view(event_repo: EventRepository, filters: dict) -> None:
+    events = await event_repo.query(
+        event_type=filters.get("type") or None,
+        source=filters.get("source") or None,
+        user=(filters.get("user") or None),
+        after=filters.get("after"),
+        before=filters.get("before"),
+        limit=EVENT_LOG_PAGE_SIZE,
+    )
+    events = list(reversed(events))
+    rows: list[dict] = [
+        {
+            "id": event.id,
+            "when": format_datetime(event.when),
+            "source": event.source,
+            "type": event.type,
+            "user": event.user or "—",
+            "payload": _format_payload(event.payload),
+        }
+        for event in events
+    ]
+
+    column_defs = [
+        {"name": "id", "label": "ID", "field": "id", "align": "left"},
+        {"name": "when", "label": "When", "field": "when", "align": "left"},
+        {"name": "source", "label": "Source", "field": "source", "align": "left"},
+        {"name": "type", "label": "Type", "field": "type", "align": "left"},
+        {"name": "user", "label": "User", "field": "user", "align": "left"},
+        {"name": "payload", "label": "Payload", "field": "payload", "align": "left"},
+    ]
+
+    if not rows:
+        ui.label("No events found for the current filters.").classes("text-sm text-gray-500")
+        return
+
+    ui.label(f"Showing {len(rows)} most recent events").classes("text-sm text-gray-500")
+    ui.table(columns=column_defs, rows=rows, row_key="id").props("dense wrap-cells flat")
+
+
+@ui.refreshable
+async def analytics_panel(event_repo: EventRepository, config: dict) -> None:
+    service = EventAnalyticsService(event_repo)
+    mode = config.get("mode", "today")
+    selected_date = config.get("date")
+    subtitle = ""
+
+    if mode == "today":
+        snapshot = await service.today()
+        subtitle = "Today's live activity"
+    else:
+        parsed = _safe_date_input(selected_date)
+        if not parsed:
+            ui.label("Select a date to view analytics.").classes("text-sm text-gray-500")
+            return
+        if mode == "on":
+            snapshot = await service.on(parsed)
+            subtitle = f"Stats on {parsed.isoformat()}"
+        else:
+            snapshot = await service.since(parsed)
+            subtitle = f"Average stats since {parsed.isoformat()}"
+
+    data = snapshot.to_dict()
+    session_stats = data["session_length"]
+    active_stats = data["active_users"]
+
+    with ui.card().classes("w-full"):
+        ui.label("Engagement Analytics").classes("text-lg font-semibold")
+        ui.label(subtitle).classes("text-sm text-gray-500 mb-2")
+
+        def _stat_block(title: str, stats: dict, keys: list[tuple[str, str]]) -> None:
+            with ui.column().classes("gap-1"):
+                ui.label(title).classes("font-medium")
+                for key, label in keys:
+                    value = stats.get(key, 0)
+                    ui.label(f"{label}: {value:.1f}s" if "session" in title.lower() else f"{label}: {value:.1f}")
+
+        with ui.grid(columns="repeat(auto-fit, minmax(220px, 1fr))").classes("gap-4 mt-2"):
+            session_keys = [
+                ("min", "Min"),
+                ("median", "Median"),
+                ("mean", "Mean"),
+                ("p95", "P95"),
+                ("max", "Max"),
+            ]
+            active_keys = [
+                ("current", "Active @ 23:59"),
+                ("max", "Peak Active"),
+            ]
+            _stat_block("Session Length (seconds)", session_stats, session_keys)
+            _stat_block("Active Users", active_stats, active_keys)
+
+
+async def _render_event_log_page(event_repo: EventRepository) -> None:
+    filters: dict = {"type": None, "source": None, "user": None, "after": None, "before": None}
+    analytics_filters: dict = {"mode": "today", "date": None}
+
+    with ui.column().classes("mx-auto w-full max-w-6xl gap-4"):
+        with ui.row().classes("items-center justify-between w-full"):
+            ui.label("Admin / Event Logs").classes("text-2xl font-semibold")
+            ui.button(
+                "Back to Admin",
+                icon="arrow_back",
+                color="primary",
+                on_click=lambda: ui.navigate.to("/"),
+            )
+
+        with ui.card().classes("w-full"):
+            ui.label("Filters").classes("text-lg font-semibold")
+            inputs = {}
+            with ui.grid(columns="repeat(auto-fit, minmax(200px, 1fr))").classes("gap-3 mt-2"):
+                inputs["type"] = ui.input("Type").props("outlined")
+                inputs["source"] = ui.input("Source URL").props("outlined")
+                inputs["user"] = ui.input("User ID").props("outlined")
+                inputs["after"] = ui.input("After").props("outlined type=datetime-local")
+                inputs["before"] = ui.input("Before").props("outlined type=datetime-local")
+
+            async def apply_filters():
+                filters["type"] = (inputs["type"].value or "").strip() or None
+                filters["source"] = (inputs["source"].value or "").strip() or None
+                filters["user"] = (inputs["user"].value or "").strip() or None
+                filters["after"] = _safe_datetime_input(inputs["after"].value)
+                filters["before"] = _safe_datetime_input(inputs["before"].value)
+                if filters["after"] and filters["before"] and filters["after"] > filters["before"]:
+                    ui.notify("'After' must be before 'Before'")
+                    return
+                await event_log_view.refresh()
+
+            async def clear_filters():
+                for key, control in inputs.items():
+                    control.value = None
+                filters.update({"type": None, "source": None, "user": None, "after": None, "before": None})
+                await event_log_view.refresh()
+
+            with ui.row().classes("mt-3 gap-2"):
+                ui.button("Apply Filters", icon="filter_alt", on_click=apply_filters)
+                ui.button("Clear", color="grey", on_click=clear_filters)
+                ui.button("Refresh", icon="refresh", on_click=event_log_view.refresh)
+
+        await event_log_view(event_repo, filters)
+
+        with ui.card().classes("w-full"):
+            ui.label("Analytics").classes("text-lg font-semibold")
+            with ui.row().classes("items-center gap-3 mt-2"):
+                mode_toggle = ui.toggle(
+                    {"today": "Today", "on": "On date", "since": "Since date"},
+                    value="today",
+                )
+                date_input = ui.input("Date").props("outlined type=date")
+
+            async def update_mode(e):
+                analytics_filters["mode"] = e.value
+                date_input.disable() if e.value == "today" else date_input.enable()
+                await analytics_panel.refresh()
+
+            async def apply_analytics():
+                analytics_filters["date"] = date_input.value or None
+                await analytics_panel.refresh()
+
+            mode_toggle.on_value_change(update_mode)
+            date_input.disable()
+
+            with ui.row().classes("mt-2 gap-2"):
+                ui.button("Update Analytics", icon="insights", on_click=apply_analytics)
+
+        await analytics_panel(event_repo, analytics_filters)
+
+
+@ui.page("/event-logs")
+async def events_dashboard(
+    event_repo: EventRepository = Depends(get_event_repository),
+):
+    await _render_event_log_page(event_repo)
 
 PAGE_SIZE = 100 # should be adjustable
 
 @ui.refreshable
-async def user_list(user_repo: UserRepository, page: int = 1, search_term: str = "") -> None:
+async def user_list(
+    user_repo: UserRepository,
+    page: int = 1,
+    search_term: str = "",
+    *,
+    event_repo: EventRepository | None = None,
+) -> None:
 
     # Fetch only a page of users
     offset = (page - 1) * PAGE_SIZE
@@ -82,20 +321,30 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         # Require the supplied password to match each selected user
         for name in selected_names:
             user = await user_repo.get_by_name(name)
-            if not user or getattr(user, "password", None) != hashed_candidate:
+            if not user:
+                return False
+            stored = getattr(user, "password", None)
+            if stored not in {candidate, hashed_candidate}:
                 return False
         return bool(selected_names)
 
     async def delete():
         nonlocal selected_names
         for name in selected_names:
+            user_model = all_users_by_name.get(name)
             was_deleted = await user_repo.delete(name)
             if was_deleted:
                 ui.notify(f"Deleted user '{name}'")
+                await _log_admin_event(
+                    event_repo,
+                    event_type="admin.user.delete",
+                    payload={"name": name},
+                    user_id=getattr(user_model, "id", None),
+                )
             else:
                 ui.notify(f"Unable to delete user '{name}'")
         selected_names = []
-        user_list.refresh(page=page, search_term=search_term)
+        user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     delete_btn = ui.button(on_click=confirm_delete, icon='delete', text='Delete selected users')
     delete_btn.disable()
@@ -149,48 +398,76 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
     # Pagination controls
     with ui.row().classes('items-center mt-4'):
         if page > 1:
-            ui.button('Prev', on_click=lambda: user_list.refresh(page - 1, search_term))
+            ui.button('Prev', on_click=lambda: user_list.refresh(page - 1, search_term, event_repo=event_repo))
         if offset + PAGE_SIZE < total:
-            ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term))
+            ui.button('Next', on_click=lambda: user_list.refresh(page + 1, search_term, event_repo=event_repo))
 
     all_user_names = [model.name for model in user_models]
+    all_users_by_name = {model.name: model for model in user_models}
 
     async def send_friend_request():
-        requester = requester_select.value
-        receiver = receiver_select.value
-        if not requester or not receiver:
+        """Send friend request using V2 API."""
+        requester_name = requester_select.value
+        receiver_name = receiver_select.value
+        if not requester_name or not receiver_name:
             ui.notify("Select both requester and receiver")
             return
         try:
-            await user_repo.create_friend_request(requester, receiver)
-            ui.notify(f"Friend request sent: {requester} → {receiver}")
+            requester = await user_repo.get_by_name(requester_name)
+            receiver = await user_repo.get_by_name(receiver_name)
+            if not requester or not receiver:
+                ui.notify("User not found")
+                return
+            
+            await user_repo.create_friend_request_v2(requester.id, receiver.id)
+            ui.notify(f"Friend request sent: {requester_name} → {receiver_name}")
+            await _log_admin_event(
+                event_repo,
+                event_type="admin.friend_request.create",
+                payload={"requester": requester_name, "receiver": receiver_name},
+                user_id=requester.id,
+            )
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
             requester_select.value = None
             receiver_select.value = None
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
-    async def accept_friend_request(requester: str, receiver: str):
+    async def accept_friend_request(requester_id: int, receiver_id: int, requester_name: str, receiver_name: str):
+        """Accept friend request using V2 API."""
         try:
-            await user_repo.accept_friend_request(requester, receiver)
-            ui.notify(f"{receiver} accepted {requester}'s request")
+            await user_repo.accept_friend_request_v2(receiver_id, requester_id)
+            ui.notify(f"{receiver_name} accepted {requester_name}'s request")
+            await _log_admin_event(
+                event_repo,
+                event_type="admin.friend_request.accept",
+                payload={"requester": requester_name, "receiver": receiver_name},
+                user_id=receiver_id,
+            )
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
-    async def deny_friend_request(requester: str, receiver: str):
+    async def deny_friend_request(requester_id: int, receiver_id: int, requester_name: str, receiver_name: str):
+        """Deny friend request using V2 API."""
         try:
-            removed = await user_repo.deny_friend_request(requester, receiver)
+            removed = await user_repo.deny_friend_request_v2(receiver_id, requester_id)
             if removed:
-                ui.notify(f"{receiver} denied {requester}'s request")
+                ui.notify(f"{receiver_name} denied {requester_name}'s request")
+                await _log_admin_event(
+                    event_repo,
+                    event_type="admin.friend_request.deny",
+                    payload={"requester": requester_name, "receiver": receiver_name},
+                    user_id=receiver_id,
+                )
             else:
                 ui.notify("No matching request to deny")
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     async def delete_friendship(user_name: str, friend_name: str):
         """Delete a friendship using V2 API."""
@@ -203,12 +480,18 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
             deleted = await user_repo.delete_friend_by_name_v2(user.id, friend_name)
             if deleted:
                 ui.notify(f"Removed friendship: {user_name} ↔ {friend_name}")
+                await _log_admin_event(
+                    event_repo,
+                    event_type="admin.friendship.delete",
+                    payload={"user": user_name, "friend": friend_name},
+                    user_id=user.id,
+                )
             else:
                 ui.notify(f"Friendship not found")
         except (ValueError, LookupError) as exc:
             ui.notify(str(exc))
         finally:
-            user_list.refresh(page=page, search_term=search_term)
+            user_list.refresh(page=page, search_term=search_term, event_repo=event_repo)
 
     ui.separator().classes('mt-6')
     ui.label("Manage Friendships").classes('text-lg font-semibold mt-2')
@@ -217,15 +500,18 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         receiver_select = ui.select(all_user_names, label='Receiver').props('outlined use-chips')
         ui.button('Send Friend Request', on_click=send_friend_request, icon='send')
 
-    friend_requests = await user_repo.list_all_friend_requests()
+    # Get ALL friend requests (not just for current page)
+    all_friend_requests = await user_repo.list_all_friend_requests()
     request_rows: list[dict] = []
-    for request in friend_requests:
+    for request in all_friend_requests:
         requester_user = await user_repo.get_by_id(request.requester_id)
         receiver_user = await user_repo.get_by_id(request.receiver_id)
         if requester_user and receiver_user:
             request_rows.append(
                 {
                     "id": request.id,
+                    "requester_id": request.requester_id,
+                    "receiver_id": request.receiver_id,
                     "requester": requester_user.name,
                     "receiver": receiver_user.name,
                 }
@@ -239,13 +525,23 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
                 ui.button(
                     'Accept',
                     icon='check',
-                    on_click=lambda r=row: accept_friend_request(r['requester'], r['receiver'])
+                    on_click=lambda r=row: accept_friend_request(
+                        r['requester_id'], 
+                        r['receiver_id'],
+                        r['requester'],
+                        r['receiver']
+                    )
                 )
                 ui.button(
                     'Deny',
                     icon='close',
                     color='red',
-                    on_click=lambda r=row: deny_friend_request(r['requester'], r['receiver'])
+                    on_click=lambda r=row: deny_friend_request(
+                        r['requester_id'],
+                        r['receiver_id'],
+                        r['requester'],
+                        r['receiver']
+                    )
                 )
     else:
         ui.label("No pending friend requests").classes('text-sm text-gray-500')
@@ -285,7 +581,10 @@ async def user_list(user_repo: UserRepository, page: int = 1, search_term: str =
         ui.label("No friendships on this page").classes('text-sm text-gray-500')
 
 @ui.page("/")
-async def index(user_repo: UserRepository = Depends(get_user_repository)):
+async def index(
+    user_repo: UserRepository = Depends(get_user_repository),
+    event_repo: EventRepository = Depends(get_event_repository),
+):
     async def create() -> None:
         value = (name.value or '').strip()
         email_value = (email.value or '').strip()
@@ -301,7 +600,13 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             ui.notify('Please enter a password')
             return
         try:
-            await user_repo.create(name=value, email=email_value, password=password_value)
+            new_user = await user_repo.create(name=value, email=email_value, password=password_value)
+            await _log_admin_event(
+                event_repo,
+                event_type="admin.user.create",
+                payload={"name": value, "email": email_value},
+                user_id=getattr(new_user, "id", None),
+            )
             ui.notify(f"Created user '{value}'")
         except Exception as e:
             logger.exception("Create failed")
@@ -310,10 +615,10 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
             name.value = ""
             email.value = ""
             password.value = ""
-            user_list.refresh(page=1, search_term=search.value or "")
+            user_list.refresh(page=1, search_term=search.value or "", event_repo=event_repo)
 
     async def apply_search():
-        user_list.refresh(page=1, search_term=search.value or "")
+        user_list.refresh(page=1, search_term=search.value or "", event_repo=event_repo)
         
     with ui.column().classes('mx-auto w-full max-w-xl'):
         with ui.row().classes('w-full items-center gap-2'):
@@ -322,8 +627,13 @@ async def index(user_repo: UserRepository = Depends(get_user_repository)):
         with ui.row().classes('w-full items-center gap-2 mt-2'):
             password = ui.input(label='Password', password=True, password_toggle_button=True).props('outlined')
             ui.button('Add', on_click=create, icon='add')
-        with ui.row().classes('w-full items-center gap-2 mt-4'):
+        with ui.row().classes('w-full items-center gap-2 mt-4 span-full'):
             search = ui.input('Search users...').props('outlined')
             ui.button('Search', on_click=apply_search, icon='search')
+            ui.button(
+                'Open Event Logs',
+                icon='event',
+                on_click=lambda: ui.navigate.to('/event-logs'),
+            ).classes('ml-auto text-primary')
 
-        await user_list(user_repo, page=1)
+        await user_list(user_repo, page=1, event_repo=event_repo)
