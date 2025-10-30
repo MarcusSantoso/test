@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.user_service.models.user import Base
 
 
+#iankatzeff
 class Event(Base):
     """Analytics event emitted by any of the client properties."""
 

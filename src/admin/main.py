@@ -7,7 +7,7 @@ import logging
 import copy
 
 
-from user_service.models.user import UserRepository, get_user_repository
+from src.user_service.models.user import UserRepository, get_user_repository
 from src.event_service.repository import EventRepository, get_event_repository
 from src.event_service.analytics import EventAnalyticsService
 from src.event_service.time_utils import format_datetime
