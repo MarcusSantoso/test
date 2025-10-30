@@ -9,6 +9,7 @@ from .time_utils import parse_datetime_string
 router = APIRouter(prefix="/events", tags=["events"])
 
 
+#iankatzeff
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_event(
     payload: EventCreateSchema,
@@ -18,6 +19,7 @@ async def create_event(
     return {"event": EventSchema.from_db_model(event)}
 
 
+#iankatzeff
 @router.get("/")
 async def list_events(
     event_type: str | None = Query(default=None, alias="type"),
