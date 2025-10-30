@@ -3,9 +3,11 @@ from __future__ import annotations
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 from sqlalchemy import (
     String,
     Integer,
+    DateTime,
     ForeignKey,
     UniqueConstraint,
     CheckConstraint,
@@ -52,6 +54,12 @@ class User(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False)
     password: Mapped[str] = mapped_column(String, nullable=False)
+    # subscription tier (1 = lowest). Default to 1 so existing tests that
+    # insert raw rows continue to work.
+    tier: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    # server-side token invalidation: tokens issued before this UTC timestamp
+    # are considered invalid. Nullable (no invalidation).
+    jwt_valid_after: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class FriendRequest(Base):
@@ -110,6 +118,27 @@ class UserRepository:
         return user
 
     async def delete(self, name: str) -> bool:
+        # Ensure referential cleanup for databases (like SQLite tests)
+        # that may not have foreign key ON DELETE CASCADE enabled.
+        user = await self.get_by_name(name)
+        if not user:
+            return False
+
+        # Delete any pending friend requests involving this user
+        self.session.execute(
+            delete(FriendRequest).where(
+                or_(FriendRequest.requester_id == user.id, FriendRequest.receiver_id == user.id)
+            )
+        )
+
+        # Delete any friendships involving this user
+        self.session.execute(
+            delete(Friendship).where(
+                or_(Friendship.user_id == user.id, Friendship.friend_id == user.id)
+            )
+        )
+
+        # Finally delete the user record
         result = self.session.execute(delete(User).where(User.name == name))
         self.session.commit()
         return result.rowcount > 0
@@ -734,10 +763,11 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 class UserSchema(BaseModel):
     name: str
     id: int | None = None
+    tier: int = 1
 
     @classmethod
     def from_db_model(cls, user: User) -> "UserSchema":
-        return cls(name=user.name, id=user.id)
+        return cls(name=user.name, id=user.id, tier=getattr(user, "tier", 1))
 
 
 class UserCreateSchema(BaseModel):
