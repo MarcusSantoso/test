@@ -43,7 +43,9 @@ class FakeRefreshable:
     async def __call__(self, *args, **kwargs):
         return None
 
-    async def refresh(self, *args, **kwargs):
+    def refresh(self, *args, **kwargs):
+        # synchronous no-op refresh to avoid coroutine warnings when code
+        # calls refresh() without awaiting
         return None
 
 
@@ -119,8 +121,16 @@ def test_user_list_delete_flow(monkeypatch):
     ui = FakeUI()
     monkeypatch.setattr(admin, "ui", ui)
 
-    # Replace the real refreshable user_list with a fake to avoid NiceGUI background tasks
-    monkeypatch.setattr(admin, "user_list", FakeRefreshable())
+    # Avoid spawning NiceGUI background tasks by stubbing only the `refresh`
+    # method on the real `user_list` function instead of replacing it.
+    # This lets the real `user_list` implementation run (so it registers the
+    # table on_select callback) while keeping refresh as a no-op in tests.
+    try:
+        monkeypatch.setattr(admin.user_list, "refresh", FakeRefreshable().refresh)
+    except Exception:
+        # if user_list isn't writable (unlikely), fall back to replacing the
+        # whole callable to keep tests isolated
+        monkeypatch.setattr(admin, "user_list", FakeRefreshable())
 
     # fake users
     users = [make_user("alice", 1), make_user("bob", 2)]

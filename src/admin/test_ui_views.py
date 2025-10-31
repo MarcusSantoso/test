@@ -69,10 +69,10 @@ def test_analytics_panel_today_and_since(monkeypatch):
 
     monkeypatch.setattr(admin, "EventAnalyticsService", lambda repo: FakeService())
 
-    monkeypatch.setattr(admin.ui, "card", lambda *a, **k: FakeWidget())
-    monkeypatch.setattr(admin.ui, "label", lambda *a, **k: FakeWidget())
-    monkeypatch.setattr(admin.ui, "grid", lambda *a, **k: FakeWidget())
-    monkeypatch.setattr(admin.ui, "column", lambda *a, **k: FakeWidget())
+    monkeypatch.setattr(admin.ui, "card", lambda *a, **k: FakeWidget(), raising=False)
+    monkeypatch.setattr(admin.ui, "label", lambda *a, **k: FakeWidget(), raising=False)
+    monkeypatch.setattr(admin.ui, "grid", lambda *a, **k: FakeWidget(), raising=False)
+    monkeypatch.setattr(admin.ui, "column", lambda *a, **k: FakeWidget(), raising=False)
 
     asyncio.run(admin.analytics_panel(None, {"mode": "today"}))
     asyncio.run(admin.analytics_panel(None, {"mode": "since", "date": "2025-01-01"}))
