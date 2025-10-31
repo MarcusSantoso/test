@@ -119,6 +119,9 @@ def test_user_list_delete_flow(monkeypatch):
     ui = FakeUI()
     monkeypatch.setattr(admin, "ui", ui)
 
+    # Replace the real refreshable user_list with a fake to avoid NiceGUI background tasks
+    monkeypatch.setattr(admin, "user_list", FakeRefreshable())
+
     # fake users
     users = [make_user("alice", 1), make_user("bob", 2)]
 
