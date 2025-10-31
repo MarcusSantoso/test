@@ -49,16 +49,16 @@ class FakeEventRepo:
 
 
 def test_event_log_view_shows_no_events_and_render_page(monkeypatch):
-    # capture labels shown
-    labels = []
-    monkeypatch.setattr(admin.ui, "label", lambda text=None: SimpleNamespace(classes=lambda *a, **k: labels.append(text)))
+    # ensure ui label/notifications are fresh
+    admin.ui._labels.clear()
+    admin.ui._notifications.clear()
 
     # use fake event repo with no events
     repo = FakeEventRepo(events=[])
 
     # call event_log_view directly
     asyncio.run(admin.event_log_view(repo, {}))
-    assert any("No events found" in (t or "") for t in labels)
+    assert any("No events found" in (t or "") for t in admin.ui._labels)
 
     # Now call the full render page which builds many UI widgets
     # Provide a fake EventAnalyticsService so analytics_panel won't fail
@@ -86,11 +86,9 @@ def test_event_log_view_shows_no_events_and_render_page(monkeypatch):
 
 
 def test_analytics_panel_modes(monkeypatch):
-    # capture labels and notifications
-    labels = []
-    notes = []
-    monkeypatch.setattr(admin.ui, "label", lambda text=None: SimpleNamespace(classes=lambda *a, **k: labels.append(text)))
-    monkeypatch.setattr(admin.ui, "notify", lambda msg: notes.append(msg))
+    # ensure ui label/notifications are fresh
+    admin.ui._labels.clear()
+    admin.ui._notifications.clear()
 
     # Fake analytics service that returns expected dict
     class FakeSnapshot:
@@ -117,4 +115,4 @@ def test_analytics_panel_modes(monkeypatch):
 
     # mode on with invalid date should prompt label/notify path
     asyncio.run(admin.analytics_panel(object(), {"mode": "on", "date": "bad-date"}))
-    assert any("Select a date" in (t or "") for t in labels) or any("Invalid date" in n for n in notes)
+    assert any("Select a date" in (t or "") for t in admin.ui._labels) or any("Invalid date" in n for n in admin.ui._notifications)

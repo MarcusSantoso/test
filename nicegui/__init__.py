@@ -1,3 +1,4 @@
+# pragma: no cover
 """Minimal stub of NiceGUI used for tests.
 
 This provides a lightweight `ui` object with the small surface the tests and
