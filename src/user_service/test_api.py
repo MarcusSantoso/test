@@ -18,7 +18,13 @@ from .api import app, _rate_windows
 def engine():
     engine = create_engine("sqlite:///:memory:?check_same_thread=False")
     Base.metadata.create_all(bind=engine)
-    yield engine
+    try:
+        yield engine
+    finally:
+        try:
+            engine.dispose()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="function")
