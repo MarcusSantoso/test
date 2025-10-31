@@ -64,15 +64,39 @@ class _Navigate:
 class _UI:
     def __init__(self):
         self.navigate = _Navigate()
+        # record labels and notifications for tests to inspect
+        self._labels: list[str] = []
+        self._notifications: list[str] = []
+        self._tables: list[callable] = []
+        self._buttons: dict[str, callable] = {}
 
     def notify(self, msg: str):
-        # lightweight log-friendly no-op
+        # record notifications for tests and be a no-op
+        try:
+            self._notifications.append(msg)
+        except Exception:
+            pass
         return None
 
     def label(self, *args, **kwargs):
+        # record the shown label text (first positional arg) and return a widget
+        text = args[0] if args else kwargs.get("text") if kwargs else None
+        try:
+            self._labels.append(text)
+        except Exception:
+            pass
         return FakeWidget()
 
     def table(self, *args, **kwargs):
+        on_select = kwargs.get("on_select")
+        if on_select is not None:
+            try:
+                self._tables.append(on_select)
+            except Exception:
+                pass
+        return FakeWidget()
+
+    def grid(self, *args, **kwargs):
         return FakeWidget()
 
     def card(self, *args, **kwargs):
@@ -85,7 +109,20 @@ class _UI:
         return FakeWidget()
 
     def button(self, *args, **kwargs):
-        return FakeWidget()
+        # capture a simple key for tests if provided
+        text = None
+        if args:
+            text = args[0]
+        if "text" in kwargs:
+            text = kwargs.get("text")
+        w = FakeWidget()
+        try:
+            if text is not None:
+                # prefer text, else use icon/name
+                self._buttons[str(text)] = kwargs.get("on_click")
+        except Exception:
+            pass
+        return w
 
     def input(self, *args, **kwargs):
         w = FakeWidget()
@@ -119,8 +156,8 @@ class _UI:
 
     # decorator helpers
     def refreshable(self, func: Callable[..., Any]):
-        # attach a no-op async refresh method and return function unchanged
-        async def _refresh(*args, **kwargs):
+        # attach a no-op synchronous refresh method and return function unchanged
+        def _refresh(*args, **kwargs):
             # intentionally do nothing; tests may replace this with fakes
             return None
 

@@ -43,7 +43,9 @@ class FakeRefreshable:
     async def __call__(self, *args, **kwargs):
         return None
 
-    async def refresh(self, *args, **kwargs):
+    def refresh(self, *args, **kwargs):
+        # synchronous no-op refresh to avoid coroutine warnings when code
+        # calls refresh() without awaiting
         return None
 
 
