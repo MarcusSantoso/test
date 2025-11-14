@@ -8,6 +8,7 @@ under the name `nicegui` before test collection.
 """
 from __future__ import annotations
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +19,8 @@ def pytest_sessionstart(session):
     if not stub_path.exists():
         # nothing to do
         return
+
+    os.environ.setdefault("NICEGUI_USE_STUB", "1")
 
     try:
         spec = importlib.util.spec_from_file_location("nicegui", str(stub_path))
