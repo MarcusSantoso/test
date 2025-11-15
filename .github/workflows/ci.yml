@@ -2,6 +2,69 @@ name: CI
 
 on:
   push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: user_service
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval=10s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: user_service
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e .
+
+      - name: Wait for Postgres
+        run: |
+          echo "Waiting for Postgres to be ready..."
+          until pg_isready -h "$POSTGRES_HOST" -p 5432 -U "$POSTGRES_USER"; do
+            sleep 1
+          done
+
+      - name: Run Alembic migrations
+        run: python3 -m alembic upgrade head
+
+      - name: Run tests
+        run: pytest -q
+name: CI
+
+on:
+  push:
     branches: [ "**" ]
   pull_request:
     branches: [ "**" ]

@@ -27,6 +27,9 @@ from .models.user import (
     FriendRequestActionSchemaV2,
     FriendshipSchemaV2,
 )
+from src.shared.database import get_db
+from src.user_service.models import Professor, Review, AISummary
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
@@ -764,3 +767,35 @@ async def get_avatar_legacy(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving avatar: {str(e)}")
+
+
+# --- Minimal Professor endpoints for Milestone 5 verification ---
+class ProfessorCreate(BaseModel):
+    name: str
+    department: Optional[str] = None
+    rmp_url: Optional[str] = None
+
+
+@app.post("/professors/", status_code=201)
+async def create_professor(payload: ProfessorCreate, db: Session = Depends(get_db)):
+    prof = Professor(name=payload.name, department=payload.department, rmp_url=payload.rmp_url)
+    db.add(prof)
+    db.commit()
+    db.refresh(prof)
+    return {"professor": {"id": prof.id, "name": prof.name}}
+
+
+@app.get("/professors/{prof_id}")
+async def get_professor(prof_id: int, db: Session = Depends(get_db)):
+    prof = db.get(Professor, prof_id)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Professor not found")
+    # load reviews and summary
+    reviews_out = []
+    for r in getattr(prof, "reviews", []):
+        reviews_out.append({"id": r.id, "text": r.text, "rating": r.rating, "source": r.source})
+    summary = getattr(prof, "ai_summary", None)
+    summary_out = None
+    if summary:
+        summary_out = {"pros": summary.pros, "cons": summary.cons, "neutral": summary.neutral, "updated_at": summary.updated_at}
+    return {"professor": {"id": prof.id, "name": prof.name, "department": prof.department, "rmp_url": prof.rmp_url, "reviews": reviews_out, "ai_summary": summary_out}}
