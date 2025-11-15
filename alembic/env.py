@@ -19,6 +19,7 @@ section = config.config_ini_section
 config.set_section_option(section, "DATABASE_HOST", os.environ.get("POSTGRES_HOST"))
 config.set_section_option(section, "DATABASE_USER", os.environ.get("POSTGRES_USER"))
 config.set_section_option(section, "DATABASE_PASSWORD", os.environ.get("POSTGRES_PASSWORD"))
+config.set_section_option(section, "DATABASE_NAME", os.environ.get("POSTGRES_DB") or os.environ.get("DATABASE_NAME"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -29,7 +30,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from user_service.models.user import Base
+from src.user_service.models.user import Base
+# Import the models package so all model modules register their tables
+import src.user_service.models  # noqa: F401 - ensure modules are imported for metadata
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
