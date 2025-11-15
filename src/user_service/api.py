@@ -30,6 +30,7 @@ from .models.user import (
 from src.shared.database import get_db
 from src.user_service.models import Professor, Review, AISummary
 from sqlalchemy.orm import Session
+from src.services.scraper_service import scrape_professor_by_id
 
 logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
@@ -799,3 +800,15 @@ async def get_professor(prof_id: int, db: Session = Depends(get_db)):
     if summary:
         summary_out = {"pros": summary.pros, "cons": summary.cons, "neutral": summary.neutral, "updated_at": summary.updated_at}
     return {"professor": {"id": prof.id, "name": prof.name, "department": prof.department, "rmp_url": prof.rmp_url, "reviews": reviews_out, "ai_summary": summary_out}}
+
+@app.post("/scrape/{prof_id}")
+async def scrape_professor_endpoint(prof_id: int, db: Session = Depends(get_db)):
+    """Trigger scraping for a professor ID. Returns number of reviews added."""
+    try:
+        added = scrape_professor_by_id(db, prof_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Professor not found")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Scrape failed: {str(exc)}")
+
+    return {"success": True, "added": added}
