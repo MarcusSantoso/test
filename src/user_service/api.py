@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 import logging
 import hashlib
 
-from admin.main import ui
+from src.admin.main import ui
 from src.event_service.router import router as event_router
 from src.event_service.analytics_router import router as analytics_router
 from src.event_service.logging import request_event_logger
