@@ -6,7 +6,7 @@ WORKDIR /app
 RUN pip install -e .
 
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
-CMD ["uvicorn", "user_service.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.user_service.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
 COPY . /app
 WORKDIR /app
