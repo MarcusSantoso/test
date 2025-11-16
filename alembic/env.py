@@ -16,10 +16,28 @@ config = context.config
 # from the host env
 load_dotenv()
 section = config.config_ini_section
-config.set_section_option(section, "DATABASE_HOST", os.environ.get("POSTGRES_HOST"))
-config.set_section_option(section, "DATABASE_USER", os.environ.get("POSTGRES_USER"))
-config.set_section_option(section, "DATABASE_PASSWORD", os.environ.get("POSTGRES_PASSWORD"))
-config.set_section_option(section, "DATABASE_NAME", os.environ.get("POSTGRES_DB") or os.environ.get("DATABASE_NAME"))
+
+
+def _set_option(option: str, *env_keys: str, default: str = "") -> None:
+    """Populate Alembic config from the first non-empty env var."""
+    for key in env_keys:
+        value = os.environ.get(key)
+        if value:
+            config.set_section_option(section, option, value)
+            break
+    else:
+        config.set_section_option(section, option, default)
+
+
+_set_option("DATABASE_HOST", "DATABASE_HOST", "POSTGRES_HOST", default="localhost")
+_set_option("DATABASE_USER", "DATABASE_USER", "POSTGRES_USER", default="postgres")
+_set_option("DATABASE_PASSWORD", "DATABASE_PASSWORD", "POSTGRES_PASSWORD", default="")
+_set_option(
+    "DATABASE_NAME",
+    "DATABASE_NAME",
+    "POSTGRES_DB",
+    default=os.environ.get("POSTGRES_USER", "postgres"),
+)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

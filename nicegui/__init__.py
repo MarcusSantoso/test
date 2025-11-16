@@ -174,6 +174,11 @@ if _use_stub:
             w.value = None
             return w
 
+        def textarea(self, *args, **kwargs):
+            w = FakeWidget()
+            w.value = None
+            return w
+
         def dialog(self, *args, **kwargs):
             # return a fake dialog that supports .open/.close
             w = FakeWidget()

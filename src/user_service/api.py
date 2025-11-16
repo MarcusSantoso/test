@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import FastAPI, Depends, Response, HTTPException, Request, status, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 from src.shared.jwt_utils import issue_jwt, verify_jwt, JWTError
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +11,13 @@ from src.admin.main import ui
 from src.event_service.router import router as event_router
 from src.event_service.analytics_router import router as analytics_router
 from src.event_service.logging import request_event_logger
+from src.shared.ai_summarization_engine import (
+    AISummarizationEngine,
+    SummarizationOptions,
+    get_summarization_engine,
+    MissingAPIKey,
+    MissingOpenAIClient,
+)
 from .models.user import (
     UserRepository,
     User,
@@ -44,6 +51,15 @@ except Exception:
 # in-memory fixed-window counters for rate limiting
 _rate_windows: dict[str, tuple[int, int]] = {}
 
+def _resolve_ai_engine() -> AISummarizationEngine:
+    try:
+        return get_summarization_engine()
+    except (MissingOpenAIClient, MissingAPIKey) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        )
+
 
 def _check_rate_limit(key: str, limit: int, window_seconds: int = 10) -> bool:
     now = int(datetime.now(tz=timezone.utc).timestamp())
@@ -74,6 +90,26 @@ class DeleteUserSchema(BaseModel):
     # integrity tests). Make password optional: when omitted, perform deletion
     # without checking credentials. When provided, verify as before.
     password: Optional[str] = None
+
+
+class SummarizeRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Raw text to summarize.")
+    context: Optional[str] = Field(
+        None,
+        description="Optional high-level instructions for the summary.",
+    )
+    max_words: Optional[int] = Field(
+        None,
+        gt=10,
+        lt=600,
+        description="Upper bound for the summary length.",
+    )
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
+    model: str
+    word_count: int
 
 
 async def auth_and_rate_limit(request: Request, user_repo: UserRepository = Depends(get_user_repository)) -> Optional[User]:
@@ -716,9 +752,34 @@ async def delete_friend_request_v2(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting friend request: {str(e)}")
-    
 
 
+@app.post("/ai/summarize", response_model=SummarizeResponse)
+async def summarize_text(
+    payload: SummarizeRequest,
+    engine: AISummarizationEngine = Depends(_resolve_ai_engine),
+):
+    """
+    Summarize an arbitrary block of text using the configured OpenAI model.
+    """
+    try:
+        summary = await engine.summarize(
+            payload.text,
+            options=SummarizationOptions(
+                instructions=payload.context,
+                max_words=payload.max_words,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        )
+
+    word_count = len(summary.split())
+    return SummarizeResponse(summary=summary, model=engine.model, word_count=word_count)
 
 
 #---------------------------------#

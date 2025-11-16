@@ -1,10 +1,12 @@
 import random
+import asyncio
 from fastapi import Depends
 from nicegui import ui
 from pydantic import parse_obj_as
 from contextlib import contextmanager
 import logging
 import copy
+import os
 
 
 from src.user_service.models.user import UserRepository, get_user_repository
@@ -16,6 +18,16 @@ import hashlib
 import json
 from datetime import datetime, date
 from datetime import timezone
+from src.shared.ai_summarization_engine import (
+    SummarizationOptions,
+    get_summarization_engine,
+    MissingAPIKey,
+    MissingOpenAIClient,
+)
+from src.user_service.summary_history_repository import (
+    AISummaryHistoryRepository,
+    get_ai_summary_history_repository,
+)
 
 logger = logging.getLogger('uvicorn.error')
 
@@ -584,6 +596,9 @@ async def user_list(
 async def index(
     user_repo: UserRepository = Depends(get_user_repository),
     event_repo: EventRepository = Depends(get_event_repository),
+    history_repo: AISummaryHistoryRepository = Depends(
+        get_ai_summary_history_repository
+    ),
 ):
     async def create() -> None:
         value = (name.value or '').strip()
@@ -637,3 +652,220 @@ async def index(
             ).classes('ml-auto text-primary')
 
         await user_list(user_repo, page=1, event_repo=event_repo)
+
+        # AI summarization demo panel (skip when running with minimal stubs)
+        if not all(hasattr(ui, attr) for attr in ("separator", "textarea", "input")):
+            return
+
+        ui.separator().classes("mt-8")
+        ui.label("AI Summarization Demo").classes("text-lg font-semibold mt-4")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            ui.label("Set OPENAI_API_KEY to enable the AI summarizer demo.").classes(
+                "text-sm text-gray-500"
+            )
+        else:
+            try:
+                ai_engine = get_summarization_engine()
+            except (MissingAPIKey, MissingOpenAIClient) as exc:
+                ui.label(f"Summarizer unavailable: {exc}").classes(
+                    "text-sm text-red-500"
+                )
+            else:
+                source_input = (
+                    ui.textarea(label="Source Text", placeholder="Paste text to summarize...")
+                    .props("outlined autogrow")
+                    .classes("w-full")
+                )
+                context_input = (
+                    ui.input(
+                        label="Context (optional)",
+                        placeholder="e.g., summarize for executives",
+                    )
+                    .props("outlined")
+                    .classes("w-full mt-2")
+                )
+                max_words_input = (
+                    ui.input(
+                        label="Max words (optional)",
+                        placeholder=str(ai_engine.default_max_words),
+                    )
+                    .props("outlined type=number")
+                    .classes("w-full mt-2")
+                )
+                summary_output = (
+                    ui.textarea(label="AI Summary", placeholder="Summary will appear here.")
+                    .props("outlined readonly autogrow")
+                    .classes("w-full mt-4")
+                )
+                raw_output = (
+                    ui.textarea(
+                        label="Raw Response (debug)",
+                        placeholder="Serialized OpenAI response will appear here.",
+                    )
+                    .props("outlined readonly autogrow")
+                    .classes("w-full mt-2 text-xs font-mono")
+                )
+                ui.separator().classes("mt-4")
+                with ui.row().classes("items-center justify-between w-full mt-2"):
+                    ui.label("Saved Summaries").classes("text-md font-semibold")
+                    clear_button = (
+                        ui.button(
+                            "Clear saved",
+                            icon="delete",
+                            on_click=lambda: asyncio.create_task(_clear_history()),
+                        )
+                        .props("flat color=negative")
+                        .classes("text-sm")
+                    )
+                    clear_button.disable()
+                history_container = ui.column().classes("w-full mt-2 gap-2")
+
+                async def _fetch_history() -> list[dict]:
+                    rows = await history_repo.list_recent(limit=10)
+                    entries: list[dict] = []
+                    for row in rows:
+                        entries.append(
+                            {
+                                "id": row.id,
+                                "summary": row.summary_text,
+                                "source": row.source_text,
+                                "context": row.context,
+                                "saved_at": row.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                            }
+                        )
+                    return entries
+
+                async def _clear_history() -> None:
+                    await history_repo.clear()
+                    await _render_history([])
+
+                async def _delete_entry(entry_id: int) -> None:
+                    await history_repo.delete_entry(entry_id)
+                    await _render_history()
+
+                async def _add_history_entry(
+                    summary_text: str,
+                    *,
+                    source_text: str,
+                    context_text: str | None,
+                    raw_payload: str | dict | list | None,
+                ) -> None:
+                    if raw_payload is None:
+                        raw_value = None
+                    elif isinstance(raw_payload, str):
+                        raw_value = raw_payload
+                    else:
+                        try:
+                            raw_value = json.dumps(raw_payload)
+                        except TypeError:
+                            raw_value = str(raw_payload)
+
+                    await history_repo.record(
+                        source_text=source_text[:2000],
+                        summary_text=summary_text,
+                        context=context_text,
+                        raw_response=raw_value,
+                    )
+                    await _render_history()
+
+                async def _render_history(entries: list[dict] | None = None) -> None:
+                    entries = entries if entries is not None else await _fetch_history()
+                    history_container.clear()
+                    if entries:
+                        clear_button.enable()
+                    else:
+                        clear_button.disable()
+                    with history_container:
+                        if not entries:
+                            ui.label("No saved summaries yet.").classes("text-sm text-gray-500")
+                            return
+                        for entry in entries:
+                            with ui.card().classes("w-full bg-gray-50"):
+                                ui.label(entry.get("saved_at", "Saved")).classes("text-xs text-gray-500")
+                                ui.label(entry.get("summary", "")).classes("text-sm whitespace-pre-wrap")
+                                if entry.get("context"):
+                                    ui.label(f"Context: {entry['context']}").classes("text-xs text-gray-500")
+                                source_text = entry.get("source", "")
+                                if source_text:
+                                    preview = (
+                                        source_text
+                                        if len(source_text) <= 160
+                                        else f"{source_text[:157]}..."
+                                    )
+                                    ui.label(f"Source: {preview}").classes("text-xs text-gray-500")
+                                ui.button(
+                                    "Delete",
+                                    icon="delete_outline",
+                                    on_click=lambda e, entry_id=entry["id"]: asyncio.create_task(_delete_entry(entry_id)),
+                                ).props("flat color=negative").classes("mt-1 self-end")
+
+                asyncio.create_task(_render_history())
+
+                async def run_summary():
+                    text = (source_input.value or "").strip()
+                    if not text:
+                        ui.notify("Enter some text to summarize.")
+                        return
+
+                    ctx = (context_input.value or "").strip()
+                    ctx_value = ctx if ctx else None
+
+                    max_words_raw = (max_words_input.value or "").strip()
+                    max_words_value = None
+                    if max_words_raw:
+                        try:
+                            max_words_value = max(10, int(max_words_raw))
+                        except ValueError:
+                            ui.notify("Max words must be an integer.")
+                            return
+
+                    summary_output.value = "Summarizing..."
+                    raw_output.value = ""
+                    try:
+                        summary, raw_data = await ai_engine.summarize_with_raw(
+                            text,
+                            options=SummarizationOptions(
+                                instructions=ctx_value,
+                                max_words=max_words_value,
+                            ),
+                        )
+                    except AttributeError:
+                        summary = await ai_engine.summarize(
+                            text,
+                            options=SummarizationOptions(
+                                instructions=ctx_value,
+                                max_words=max_words_value,
+                            ),
+                        )
+                        raw_data = "Raw response unavailable with this engine version."
+                    except Exception as exc:  # pragma: no cover - UI feedback
+                        summary_output.value = ""
+                        raw_output.value = ""
+                        ui.notify(f"Summarization failed: {exc}")
+                        return
+
+                    summary_output.value = summary or ""
+                    if isinstance(raw_data, str):
+                        raw_output.value = raw_data
+                    else:
+                        try:
+                            raw_output.value = json.dumps(raw_data, ensure_ascii=False, indent=2)
+                        except TypeError:
+                            raw_output.value = str(raw_data)
+                    if summary:
+                        await _add_history_entry(
+                            summary,
+                            source_text=text,
+                            context_text=ctx_value,
+                            raw_payload=raw_data,
+                        )
+                        ui.notify("Summary ready.")
+                    else:
+                        ui.notify("OpenAI returned an empty summary.", color="warning")
+
+                ui.button(
+                    "Summarize with OpenAI",
+                    on_click=run_summary,
+                    icon="bolt",
+                ).classes("mt-2")
