@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 from src.shared.jwt_utils import issue_jwt, verify_jwt, JWTError
 from sqlalchemy.exc import IntegrityError
+from fastapi.staticfiles import StaticFiles
 import logging
 import hashlib
 
@@ -41,6 +42,7 @@ from src.services.scraper_service import scrape_professor_by_id
 
 logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 try:
     ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
