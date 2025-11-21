@@ -22,6 +22,7 @@ class AISummary(Base):
     cons: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     neutral: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    review_count_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
     professor: Mapped["Professor"] = relationship(
         "Professor", back_populates="ai_summary"
