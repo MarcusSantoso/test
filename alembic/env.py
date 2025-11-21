@@ -21,6 +21,14 @@ config.set_section_option(section, "DATABASE_USER", os.environ.get("POSTGRES_USE
 config.set_section_option(section, "DATABASE_PASSWORD", os.environ.get("POSTGRES_PASSWORD"))
 config.set_section_option(section, "DATABASE_NAME", os.environ.get("POSTGRES_DB") or os.environ.get("DATABASE_NAME"))
 
+# If a single DATABASE_URL is provided (e.g. from Render), prefer it for
+# the SQLAlchemy/alembic connection. This keeps compatibility with both the
+# individual POSTGRES_* vars and a single DATABASE_URL value.
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # configure sqlalchemy.url for alembic
+    config.set_main_option("sqlalchemy.url", db_url)
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
