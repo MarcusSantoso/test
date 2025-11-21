@@ -203,20 +203,9 @@ async def emit_request_events(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception:
-        # Attempt to log the 500, but don't let logging failures mask the
-        # original exception. Event logging can depend on Redis and other
-        # network services that may transiently fail; swallow logging
-        # exceptions and re-raise the original error so the client sees the
-        # real failure.
-        try:
-            await request_event_logger.log_request(request, 500)
-        except Exception:
-            logger.exception("request_event_logger failed while handling exception")
+        await request_event_logger.log_request(request, 500)
         raise
-    try:
-        await request_event_logger.log_request(request, response.status_code)
-    except Exception:
-        logger.exception("request_event_logger failed while logging response")
+    await request_event_logger.log_request(request, response.status_code)
     return response
 
 app.include_router(event_router, prefix="/v2")
