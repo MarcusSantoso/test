@@ -779,11 +779,17 @@ class ProfessorCreate(BaseModel):
 
 @app.post("/professors/", status_code=201)
 async def create_professor(payload: ProfessorCreate, db: Session = Depends(get_db)):
-    prof = Professor(name=payload.name, department=payload.department, rmp_url=payload.rmp_url)
-    db.add(prof)
-    db.commit()
-    db.refresh(prof)
-    return {"professor": {"id": prof.id, "name": prof.name}}
+    try:
+        prof = Professor(name=payload.name, department=payload.department, rmp_url=payload.rmp_url)
+        db.add(prof)
+        db.commit()
+        db.refresh(prof)
+        return {"professor": {"id": prof.id, "name": prof.name}}
+    except Exception as exc:
+        # Log full traceback for diagnostics and return the error message
+        logger.exception("create_professor failed")
+        # Return the exception detail in response to help debugging (temporary)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/professors/{prof_id}")
