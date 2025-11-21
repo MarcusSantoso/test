@@ -44,6 +44,15 @@ _set_option(
 # individual POSTGRES_* vars and a single DATABASE_URL value.
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
+    # Normalize common URL schemes so SQLAlchemy can locate the correct
+    # dialect plugin. Some platforms (Render) provide URLs that start with
+    # `postgres://` which triggers SQLAlchemy to look for
+    # `sqlalchemy.dialects.postgres` (not present). Replace that with the
+    # supported `postgresql://` scheme. If a fully-qualified DBAPI is
+    # provided (eg `postgresql+psycopg2://`) keep it as-is.
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
     # configure sqlalchemy.url for alembic
     config.set_main_option("sqlalchemy.url", db_url)
 
