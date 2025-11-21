@@ -11,7 +11,7 @@ from src.admin.main import ui
 from src.event_service.router import router as event_router
 from src.event_service.analytics_router import router as analytics_router
 from src.event_service.logging import request_event_logger
-from src.shared.ai_summarization_engine import (
+from src.services.ai_summarization_engine import (
     AISummarizationEngine,
     SummarizationOptions,
     get_summarization_engine,
@@ -38,6 +38,7 @@ from src.shared.database import get_db
 from src.user_service.models import Professor, Review, AISummary
 from sqlalchemy.orm import Session
 from src.services.scraper_service import scrape_professor_by_id
+from src.services.summary_service import SummaryService
 
 logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
@@ -59,6 +60,13 @@ def _resolve_ai_engine() -> AISummarizationEngine:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         )
+
+
+def _get_summary_service(
+    db: Session = Depends(get_db),
+    engine: AISummarizationEngine = Depends(_resolve_ai_engine),
+) -> SummaryService:
+    return SummaryService(db, engine)
 
 
 def _check_rate_limit(key: str, limit: int, window_seconds: int = 10) -> bool:
@@ -110,6 +118,51 @@ class SummarizeResponse(BaseModel):
     summary: str
     model: str
     word_count: int
+
+
+class ProfessorSummaryPayload(BaseModel):
+    prof_id: int
+    pros: List[str]
+    cons: List[str]
+    neutral: List[str]
+    updated_at: datetime
+
+
+class ProfessorSummaryResponse(BaseModel):
+    summary: ProfessorSummaryPayload
+
+
+def _coerce_summary_list(value: object) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if isinstance(value, (list, tuple, set)):
+        out: List[str] = []
+        for item in value:
+            if isinstance(item, str):
+                cleaned = item.strip()
+                if cleaned:
+                    out.append(cleaned)
+        return out
+    return []
+
+
+def _serialize_professor_summary(summary: AISummary) -> ProfessorSummaryPayload:
+    updated_at = summary.updated_at
+    if updated_at is None:
+        updated_at = datetime.now(timezone.utc)
+    elif updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+
+    return ProfessorSummaryPayload(
+        prof_id=summary.prof_id,
+        pros=_coerce_summary_list(summary.pros),
+        cons=_coerce_summary_list(summary.cons),
+        neutral=_coerce_summary_list(summary.neutral),
+        updated_at=updated_at,
+    )
 
 
 async def auth_and_rate_limit(request: Request, user_repo: UserRepository = Depends(get_user_repository)) -> Optional[User]:
@@ -859,8 +912,38 @@ async def get_professor(prof_id: int, db: Session = Depends(get_db)):
     summary = getattr(prof, "ai_summary", None)
     summary_out = None
     if summary:
-        summary_out = {"pros": summary.pros, "cons": summary.cons, "neutral": summary.neutral, "updated_at": summary.updated_at}
+        summary_out = _serialize_professor_summary(summary).model_dump()
     return {"professor": {"id": prof.id, "name": prof.name, "department": prof.department, "rmp_url": prof.rmp_url, "reviews": reviews_out, "ai_summary": summary_out}}
+
+
+@app.get("/prof/{prof_id}/summary", response_model=ProfessorSummaryResponse)
+async def get_professor_summary_endpoint(
+    prof_id: int,
+    summary_service: SummaryService = Depends(_get_summary_service),
+):
+    try:
+        summary = await summary_service.fetch_summary(prof_id, auto_refresh=True)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Professor not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"summary": _serialize_professor_summary(summary)}
+
+
+@app.post("/prof/{prof_id}/summary/refresh", response_model=ProfessorSummaryResponse)
+async def refresh_professor_summary_endpoint(
+    prof_id: int,
+    summary_service: SummaryService = Depends(_get_summary_service),
+):
+    try:
+        summary = await summary_service.fetch_summary(
+            prof_id, auto_refresh=False, force_refresh=True
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Professor not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"summary": _serialize_professor_summary(summary)}
 
 @app.post("/scrape/{prof_id}")
 async def scrape_professor_endpoint(prof_id: int, db: Session = Depends(get_db)):
