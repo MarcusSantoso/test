@@ -39,6 +39,14 @@ _set_option(
     default=os.environ.get("POSTGRES_USER", "postgres"),
 )
 
+# If a single DATABASE_URL is provided (e.g. from Render), prefer it for
+# the SQLAlchemy/alembic connection. This keeps compatibility with both the
+# individual POSTGRES_* vars and a single DATABASE_URL value.
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # configure sqlalchemy.url for alembic
+    config.set_main_option("sqlalchemy.url", db_url)
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
