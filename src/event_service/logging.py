@@ -28,7 +28,13 @@ class RequestEventLogger:
     async def _write_event(self, request: Request, response_status: int) -> None:
         if not _should_log_request(request):
             return
-        repo = EventRepository(get_redis())
+        try:
+            redis_client = get_redis()
+        except Exception:
+            # If Redis is not configured or unavailable, skip event logging
+            logger.exception("Redis unavailable for request-event logging; skipping")
+            return
+        repo = EventRepository(redis_client)
         when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         payload: dict[str, Any] = {
             "method": request.method,
