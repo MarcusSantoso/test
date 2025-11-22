@@ -67,3 +67,31 @@ $ docker compose exec web pytest
 [Alembic](https://alembic.sqlalchemy.org/en/latest/) - This tool is used to manage changes to our database schemas. Whenever you want to modify a table's shape in postgres (i.e., add, remove, or change the type of a column), use an alembic migration.
 
 [NiceGUI](https://nicegui.io/) - This is the library used for the frontend in the admin interface.
+
+## SFU sync CLI
+
+The project includes a small sync helper that pulls instructor lists from
+Simon Fraser University's Course Outlines API and (optionally) scrapes
+RateMyProfessors/Reddit for reviews.
+
+- Run the sync in dry-run mode (won't modify your Postgres DB):
+
+```bash
+python3 -m src.services.sfu_sync --department CMPT --recent-terms 1 --max-courses 10
+```
+
+- If your environment does not have the `DATABASE_*` variables set and you
+	run the sync without `--commit` it will automatically fall back to an
+	in-memory SQLite database so you can test safely. When `--commit` is
+	provided the CLI requires a real DB (and will error if `get_db()` fails).
+
+- To persist results to your Postgres DB, set the DB env vars and pass
+	`--commit`:
+
+```bash
+export DATABASE_HOST=... DATABASE_USER=... DATABASE_PASSWORD=... DATABASE_NAME=...
+python3 -m src.services.sfu_sync --department CMPT --recent-terms 2 --max-courses 100 --commit
+```
+
+The `sfu_sync` CLI is handy for testing and small imports. It's a good idea
+to run it in dry-run mode first and inspect results before committing.
