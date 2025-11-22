@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professor Details</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container professor-container">
+        <a href="/static/index.html" class="back-link">← Back to Home</a>
+        
+        <h1>Professor Lookup</h1>
+        
+        <!-- Search/Create Section -->
+        <div class="professor-search">
+            <div class="search-tabs">
+                <button class="search-tab active" data-tab="lookup">Lookup by ID</button>
+                <button class="search-tab" data-tab="create">Add New Professor</button>
+            </div>
+            
+            <form id="lookupForm" class="search-form">
+                <div class="form-row">
+                    <input type="number" id="profId" placeholder="Enter Professor ID" required min="1">
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </div>
+            </form>
+            
+            <form id="createForm" class="search-form hidden">
+                <div class="form-group">
+                    <label for="profName">Professor Name</label>
+                    <input type="text" id="profName" placeholder="e.g., Dr. John Smith" required>
+                </div>
+                <div class="form-group">
+                    <label for="profDept">Department</label>
+                    <input type="text" id="profDept" placeholder="e.g., Computer Science">
+                </div>
+                <div class="form-group">
+                    <label for="profRmpUrl">RateMyProfessors URL (optional)</label>
+                    <input type="url" id="profRmpUrl" placeholder="https://ratemyprofessors.com/...">
+                </div>
+                <button type="submit" class="btn btn-primary">Add Professor</button>
+                <div id="createError" class="error-message"></div>
+                <div id="createSuccess" class="success-message"></div>
+            </form>
+        </div>
+        
+        <div id="searchError" class="error-message"></div>
+        
+        <!-- Professor Details Section -->
+        <div id="professorDetails" class="hidden">
+            <div class="prof-header">
+                <div class="prof-info">
+                    <h2 id="profNameDisplay"></h2>
+                    <p class="dept" id="profDeptDisplay"></p>
+                    <p class="prof-id">ID: <span id="profIdDisplay"></span></p>
+                    <a id="profRmpLink" href="#" target="_blank" class="rmp-link hidden">View on RateMyProfessors →</a>
+                </div>
+                <button id="scrapeBtn" class="btn btn-secondary">🔄 Fetch New Reviews</button>
+            </div>
+            
+            <!-- AI Summary Section -->
+            <div class="ai-summary-section">
+                <h3>AI Summary</h3>
+                <div id="aiSummaryContent">
+                    <div id="noSummary" class="no-data">No AI summary available yet.</div>
+                    <div id="summaryCards" class="summary-cards hidden">
+                        <div class="summary-card pros">
+                            <h4>Pros</h4>
+                            <ul id="prosList"></ul>
+                        </div>
+                        <div class="summary-card cons">
+                            <h4>Cons</h4>
+                            <ul id="consList"></ul>
+                        </div>
+                        <div class="summary-card neutral">
+                            <h4>ℹNeutral</h4>
+                            <ul id="neutralList"></ul>
+                        </div>
+                    </div>
+                    <p id="summaryUpdated" class="updated-time hidden"></p>
+                </div>
+            </div>
+            
+            <!-- Reviews Section -->
+            <div class="reviews-section">
+                <h3>Reviews <span id="reviewCount" class="review-count"></span></h3>
+                <div id="reviewsContent">
+                    <div id="noReviews" class="no-data">No reviews available yet. Click "Fetch New Reviews" to scrape data.</div>
+                    <div id="reviewsList" class="reviews-list"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loading State -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+    
+    <script src="/static/professors.js"></script>
+</body>
+</html>
