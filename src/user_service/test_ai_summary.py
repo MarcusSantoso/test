@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from src.user_service.api import app, SummarizeRequest, _resolve_ai_engine
-from src.shared.ai_summarization_engine import _coerce_response_text
+from src.services.ai_summarization_engine import _coerce_response_text
 
 
 class DummyEngine:

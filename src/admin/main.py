@@ -18,7 +18,7 @@ import hashlib
 import json
 from datetime import datetime, date
 from datetime import timezone
-from src.shared.ai_summarization_engine import (
+from src.services.ai_summarization_engine import (
     SummarizationOptions,
     get_summarization_engine,
     MissingAPIKey,
@@ -706,6 +706,74 @@ async def index(
                     .props("outlined readonly autogrow")
                     .classes("w-full mt-2 text-xs font-mono")
                 )
+                async def run_summary():
+                    text = (source_input.value or "").strip()
+                    if not text:
+                        ui.notify("Enter some text to summarize.")
+                        return
+
+                    ctx = (context_input.value or "").strip()
+                    ctx_value = ctx if ctx else None
+
+                    max_words_raw = (max_words_input.value or "").strip()
+                    max_words_value = None
+                    if max_words_raw:
+                        try:
+                            max_words_value = max(10, int(max_words_raw))
+                        except ValueError:
+                            ui.notify("Max words must be an integer.")
+                            return
+
+                    summary_output.value = "Summarizing..."
+                    raw_output.value = ""
+                    try:
+                        summary, raw_data = await ai_engine.summarize_with_raw(
+                            text,
+                            options=SummarizationOptions(
+                                instructions=ctx_value,
+                                max_words=max_words_value,
+                            ),
+                        )
+                    except AttributeError:
+                        summary = await ai_engine.summarize(
+                            text,
+                            options=SummarizationOptions(
+                                instructions=ctx_value,
+                                max_words=max_words_value,
+                            ),
+                        )
+                        raw_data = "Raw response unavailable with this engine version."
+                    except Exception as exc:  # pragma: no cover - UI feedback
+                        summary_output.value = ""
+                        raw_output.value = ""
+                        ui.notify(f"Summarization failed: {exc}")
+                        return
+
+                    summary_output.value = summary or ""
+                    if isinstance(raw_data, str):
+                        raw_output.value = raw_data
+                    else:
+                        try:
+                            raw_output.value = json.dumps(raw_data, ensure_ascii=False, indent=2)
+                        except TypeError:
+                            raw_output.value = str(raw_data)
+                    if summary:
+                        await _add_history_entry(
+                            summary,
+                            source_text=text,
+                            context_text=ctx_value,
+                            raw_payload=raw_data,
+                        )
+                        ui.notify("Summary ready.")
+                    else:
+                        ui.notify("OpenAI returned an empty summary.", color="warning")
+
+                ui.button(
+                    "Summarize with OpenAI",
+                    on_click=run_summary,
+                    icon="bolt",
+                ).classes("mt-2 mb-4")
+
                 ui.separator().classes("mt-4")
                 with ui.row().classes("items-center justify-between w-full mt-2"):
                     ui.label("Saved Summaries").classes("text-md font-semibold")
@@ -719,7 +787,11 @@ async def index(
                         .classes("text-sm")
                     )
                     clear_button.disable()
-                history_container = ui.column().classes("w-full mt-2 gap-2")
+                history_container = (
+                    ui.column()
+                    .classes("w-full mt-2 gap-2 overflow-y-auto")
+                    .style("max-height: 20rem;")
+                )
 
                 async def _fetch_history() -> list[dict]:
                     rows = await history_repo.list_recent(limit=10)
@@ -801,71 +873,3 @@ async def index(
                                 ).props("flat color=negative").classes("mt-1 self-end")
 
                 asyncio.create_task(_render_history())
-
-                async def run_summary():
-                    text = (source_input.value or "").strip()
-                    if not text:
-                        ui.notify("Enter some text to summarize.")
-                        return
-
-                    ctx = (context_input.value or "").strip()
-                    ctx_value = ctx if ctx else None
-
-                    max_words_raw = (max_words_input.value or "").strip()
-                    max_words_value = None
-                    if max_words_raw:
-                        try:
-                            max_words_value = max(10, int(max_words_raw))
-                        except ValueError:
-                            ui.notify("Max words must be an integer.")
-                            return
-
-                    summary_output.value = "Summarizing..."
-                    raw_output.value = ""
-                    try:
-                        summary, raw_data = await ai_engine.summarize_with_raw(
-                            text,
-                            options=SummarizationOptions(
-                                instructions=ctx_value,
-                                max_words=max_words_value,
-                            ),
-                        )
-                    except AttributeError:
-                        summary = await ai_engine.summarize(
-                            text,
-                            options=SummarizationOptions(
-                                instructions=ctx_value,
-                                max_words=max_words_value,
-                            ),
-                        )
-                        raw_data = "Raw response unavailable with this engine version."
-                    except Exception as exc:  # pragma: no cover - UI feedback
-                        summary_output.value = ""
-                        raw_output.value = ""
-                        ui.notify(f"Summarization failed: {exc}")
-                        return
-
-                    summary_output.value = summary or ""
-                    if isinstance(raw_data, str):
-                        raw_output.value = raw_data
-                    else:
-                        try:
-                            raw_output.value = json.dumps(raw_data, ensure_ascii=False, indent=2)
-                        except TypeError:
-                            raw_output.value = str(raw_data)
-                    if summary:
-                        await _add_history_entry(
-                            summary,
-                            source_text=text,
-                            context_text=ctx_value,
-                            raw_payload=raw_data,
-                        )
-                        ui.notify("Summary ready.")
-                    else:
-                        ui.notify("OpenAI returned an empty summary.", color="warning")
-
-                ui.button(
-                    "Summarize with OpenAI",
-                    on_click=run_summary,
-                    icon="bolt",
-                ).classes("mt-2")
