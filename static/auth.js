@@ -65,7 +65,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, email, password })
             });
-            const data = await res.json();
+            
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                data = { detail: 'Invalid response from server' };
+            }
 
             if (res.status === 201) {
                 successEl.textContent = 'Account created! Logging you in...';
@@ -79,8 +85,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 errEl.textContent = 'Username or email already exists';
                 btn.disabled = false;
                 btn.textContent = 'Create Account';
+            } else if (res.status === 422) {
+                // Validation error from FastAPI/Pydantic
+                if (data.detail && Array.isArray(data.detail)) {
+                    // Extract validation error messages
+                    const errors = data.detail.map(err => err.msg || err.message || 'Validation error').join(', ');
+                    errEl.textContent = errors;
+                } else if (typeof data.detail === 'string') {
+                    errEl.textContent = data.detail;
+                } else {
+                    errEl.textContent = 'Invalid input. Please check your email format.';
+                }
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
             } else {
-                errEl.textContent = data.detail || 'Registration failed';
+                // Handle any other error
+                const errorMsg = typeof data.detail === 'string' 
+                    ? data.detail 
+                    : (data.message || 'Registration failed');
+                errEl.textContent = errorMsg;
                 btn.disabled = false;
                 btn.textContent = 'Create Account';
             }
