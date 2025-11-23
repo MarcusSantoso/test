@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login / Register</title>
+    <link rel="stylesheet" href="/static/styles.css?v=2">
+</head>
+<body>
+    <div class="container">
+        <a href="/static/index.html" class="back-link">← Back to Home</a>
+        
+        <div id="authContainer">
+            <h1>Welcome</h1>
+            
+            <div class="tabs">
+                <button class="tab active" data-tab="login">Login</button>
+                <button class="tab" data-tab="register">Register</button>
+            </div>
+            
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="loginName">Username</label>
+                    <input type="text" id="loginName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+                <div id="loginError" class="error-message"></div>
+            </form>
+            
+            <form id="registerForm" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="registerName">Username</label>
+                    <input type="text" id="registerName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input type="email" id="registerEmail" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">Password</label>
+                    <input type="password" id="registerPassword" name="password" required minlength="4">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Account</button>
+                <div id="registerError" class="error-message"></div>
+                <div id="registerSuccess" class="success-message"></div>
+            </form>
+        </div>
+        
+        <div id="dashboard" class="hidden">
+            <div class="dashboard-header">
+                <h1>Welcome, <span id="userName"></span>!</h1>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+            
+            <div class="user-info">
+                <h2>Your Profile</h2>
+                <div class="info-card">
+                    <p><strong>User ID:</strong> <span id="userId"></span></p>
+                    <p><strong>Username:</strong> <span id="userNameDisplay"></span></p>
+                    <p><strong>Tier:</strong> <span id="userTier"></span></p>
+                </div>
+            </div>
+            
+            <div class="quick-links">
+                <h2>Quick Links</h2>
+                <div class="link-buttons">
+                    <a href="/static/index.html" class="btn btn-secondary">← Home</a>
+                    <a href="/static/professors.html" class="btn btn-primary">Browse Professors →</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/auth.js"></script>
+</body>
+</html>
