@@ -25,7 +25,7 @@ logger = logging.getLogger("sfu_sync")
 #   GET {BASE}/course-outlines?2015/summer/cmpt/110/c100
 SFU_COURSE_OUTLINES_BASE = (
     os.environ.get("SFU_COURSE_OUTLINES_BASE")
-    or "http://www.sfu.ca/bin/wcm"   # http works; https probably also fine
+    or "https://www.sfu.ca/bin/wcm"   # prefer https by default
 )
 
 DEFAULT_DEPARTMENT = "CMPT"

@@ -95,3 +95,46 @@ python3 -m src.services.sfu_sync --department CMPT --recent-terms 2 --max-course
 
 The `sfu_sync` CLI is handy for testing and small imports. It's a good idea
 to run it in dry-run mode first and inspect results before committing.
+
+## Developer DB snapshot and restore
+
+When you want teammates to run the same local database (schema + sample data),
+follow this recommended flow:
+
+1. Ensure schema changes are captured as Alembic migrations. To apply migrations
+	 from the web container run:
+
+```
+docker compose exec web alembic upgrade head
+```
+
+2. We include a small sanitized SQL sample file at `data/user_service_sample.sql`.
+	 To start DB + Adminer and restore the sample data use the Makefile targets:
+
+```
+make db-up
+make db-restore-sample
+```
+
+3. Alternatively restore the SQL file manually:
+
+```
+docker compose up -d db adminer
+docker cp data/user_service_sample.sql user_service-db-1:/tmp/user_service_sample.sql
+docker compose exec db psql -U postgres -d user_service -f /tmp/user_service_sample.sql
+```
+
+4. If you have a real dump file (`.dump`) use `pg_restore` instead of `psql`:
+
+```
+# copy into container
+docker cp user_service_dev.dump user_service-db-1:/tmp/user_service_dev.dump
+docker compose exec db pg_restore -U postgres -d user_service /tmp/user_service_dev.dump
+```
+
+Notes:
+- Do NOT commit production database dumps into the repo. Use sanitized sample
+	data for developer onboarding.
+- Always commit Alembic migration files alongside code that requires schema
+	changes so teammates can run `alembic upgrade head` to get the right schema.
+
