@@ -39,7 +39,7 @@ from src.shared.database import get_db
 from src.user_service.models import Professor, Review, AISummary
 from sqlalchemy.orm import Session
 from src.services.scraper_service import scrape_professor_by_id
-from src.services.summary_service import SummaryService
+from sqlalchemy import select
 
 logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
@@ -905,6 +905,34 @@ async def create_professor(payload: ProfessorCreate, db: Session = Depends(get_d
         # Log full traceback for diagnostics and return the error message
         logger.exception("create_professor failed")
         # Return the exception detail in response to help debugging (temporary)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/professors/")
+async def list_professors(q: Optional[str] = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+    """List professors. Optional `q` performs a case-insensitive name search.
+
+    This endpoint is intentionally minimal for dev/inspection purposes.
+    """
+    try:
+        stmt = select(Professor)
+        if q:
+            # use simple case-insensitive match
+            stmt = select(Professor).where(Professor.name.ilike(f"%{q}%"))
+        stmt = stmt.limit(limit).offset(offset)
+        professors = db.scalars(stmt).all()
+        out = []
+        for p in professors:
+            out.append({
+                "id": p.id,
+                "name": p.name,
+                "department": p.department,
+                "rmp_url": p.rmp_url,
+                "course_codes": p.course_codes,
+            })
+        return {"professors": out}
+    except Exception as exc:
+        logger.exception("list_professors failed")
         raise HTTPException(status_code=500, detail=str(exc))
 
 

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
-
-from sqlalchemy import String, Integer, DateTime
+from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.user_service.models.user import Base
@@ -21,6 +19,7 @@ class Professor(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     department: Mapped[str | None] = mapped_column(String, nullable=True)
     rmp_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    course_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
