@@ -19,6 +19,7 @@ from src.services.ai_summarization_engine import (
     MissingAPIKey,
     MissingOpenAIClient,
 )
+from src.services.summary_service import SummaryService
 from .models.user import (
     UserRepository,
     User,
