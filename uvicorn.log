@@ -1,0 +1,443 @@
+INFO:     Will watch for changes in these directories: ['/Users/bedropark/user_service']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [83311] using WatchFiles
+INFO:     Started server process [83314]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:root:DATABASE_URL provided but connection failed (postgresql://user_service_db_bvxf_user:7RlfWs5dC9h3xnYDB6onYmn3SMP8X1a2@dpg-d4fvusqdbo4c739s6s6g-a/user_service_db_bvxf). Falling back to POSTGRES_*/localhost. Error: (psycopg2.OperationalError) could not translate host name "dpg-d4fvusqdbo4c739s6s6g-a" to address: nodename nor servname provided, or not known
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49727 - "GET /professors/2/debug HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49732 - "GET /professors/2 HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49746 - "GET /professors/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49757 - "GET /static/professors.html HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49757 - "GET /static/professors.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49758 - "GET /static/styles.css?v=2 HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49758 - "GET /professors/?q=herbert HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49758 - "GET /professors/2 HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49762 - "GET /professors/?q=sonja HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49762 - "GET /professors/129 HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49764 - "GET /professors/?q=brian HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:49764 - "GET /professors/31 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'src/user_service/api.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [83314]
+INFO:     Started server process [83691]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

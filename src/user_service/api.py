@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi.staticfiles import StaticFiles
 import logging
 import hashlib
+import re
 
 from src.admin.main import ui
 from src.event_service.router import router as event_router
@@ -937,6 +938,105 @@ async def list_professors(q: Optional[str] = None, limit: int = 100, offset: int
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+def _extract_and_normalize_course_codes(professor: Professor):
+    stored = getattr(professor, "course_codes", None)
+    course_codes = None
+    import json
+
+    if stored:
+        s = str(stored).strip()
+        def try_parse(text):
+            try:
+                return json.loads(text)
+            except Exception:
+                return None
+
+        parsed = try_parse(s)
+        if parsed is None:
+            if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                parsed = try_parse(s[1:-1])
+        if parsed is None:
+            parsed = try_parse(s.replace('""', '"'))
+        if parsed is None:
+            parsed = try_parse(s.replace('\\"', '"'))
+
+        if isinstance(parsed, list):
+            course_codes = [str(c).strip() for c in parsed if str(c).strip()]
+        else:
+            parts = [p.strip() for p in re.split(r'[;,]', s) if p.strip()]
+            codes = []
+            for p in parts:
+                if (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
+                    p = p[1:-1]
+                if p:
+                    codes.append(p)
+            if codes:
+                course_codes = codes
+    else:
+        codes = set()
+        pattern = re.compile(r"\b[A-Z]{2,6}\s*-?\s*\d{2,4}\b")
+        for r in getattr(professor, "reviews", []):
+            if not r.text:
+                continue
+            for m in pattern.findall(r.text.upper()):
+                codes.add(m.replace('\n', ' ').strip())
+        if codes:
+            course_codes = sorted(codes)
+
+    # normalization to include department prefix when appropriate
+    if course_codes:
+        def derive_dept_code(dept_raw: Optional[str]) -> Optional[str]:
+            if not dept_raw:
+                return None
+            d = dept_raw.strip()
+            if d.isupper() and d.isalpha() and 2 <= len(d) <= 6:
+                return d
+            mapping = {
+                'COMPUTER SCIENCE': 'CMPT',
+                'COMPUTER SCIENCE AND': 'CMPT',
+                'CMPT': 'CMPT',
+                'MATHEMATICS': 'MATH',
+                'MATH': 'MATH',
+                'STATISTICS': 'STAT',
+                'STAT': 'STAT',
+                'ENGINEERING': 'ENSC',
+                'ENSC': 'ENSC',
+                'BIOLOGY': 'BIO',
+                'PSYCHOLOGY': 'PSYC',
+                'ECONOMICS': 'ECON',
+                'CRIMINOLOGY': 'CRIM',
+                'GENDER STUDIES': 'GSWS',
+                'BUSINESS ADMINISTRATION': 'BUS',
+                'EDUCATION': 'EDUC',
+            }
+            key = d.upper()
+            if key in mapping:
+                return mapping[key]
+            m = re.match(r"([A-Z]{2,6})", key)
+            if m:
+                return m.group(1)
+            return None
+
+        dept_code = derive_dept_code(professor.department if getattr(professor, 'department', None) else None)
+
+        def normalize_code_entry(code: str) -> str:
+            if not code:
+                return code
+            orig = code.strip()
+            u = orig.upper()
+            m1 = re.match(r"^([A-Z]{2,6})\s*-?\s*(\d{2,4}\w*)$", u)
+            if m1:
+                return f"{m1.group(1)} {m1.group(2)}"
+            m2 = re.match(r"^(\d{2,4}\w*)$", u)
+            if m2 and dept_code:
+                return f"{dept_code} {m2.group(1)}"
+            return u
+
+        course_codes = [normalize_code_entry(c) for c in course_codes]
+
+    return stored, course_codes
+
+
 @app.get("/professors/{prof_id}")
 async def get_professor(prof_id: int, db: Session = Depends(get_db)):
     prof = db.get(Professor, prof_id)
@@ -950,7 +1050,125 @@ async def get_professor(prof_id: int, db: Session = Depends(get_db)):
     summary_out = None
     if summary:
         summary_out = _serialize_professor_summary(summary).model_dump()
-    return {"professor": {"id": prof.id, "name": prof.name, "department": prof.department, "rmp_url": prof.rmp_url, "reviews": reviews_out, "ai_summary": summary_out}}
+    # Delegate course-code extraction/normalization to a helper so it can be
+    # reused and debugged more easily.
+    def _extract_and_normalize_course_codes(professor: Professor):
+        stored = getattr(professor, "course_codes", None)
+        course_codes = None
+        import json
+
+        if stored:
+            s = str(stored).strip()
+            def try_parse(text):
+                try:
+                    return json.loads(text)
+                except Exception:
+                    return None
+
+            parsed = try_parse(s)
+            if parsed is None:
+                if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                    parsed = try_parse(s[1:-1])
+            if parsed is None:
+                parsed = try_parse(s.replace('""', '"'))
+            if parsed is None:
+                parsed = try_parse(s.replace('\\"', '"'))
+
+            if isinstance(parsed, list):
+                course_codes = [str(c).strip() for c in parsed if str(c).strip()]
+            else:
+                parts = [p.strip() for p in re.split(r'[;,]', s) if p.strip()]
+                codes = []
+                for p in parts:
+                    if (p.startswith('"') and p.endswith('"')) or (p.startswith("'") and p.endswith("'")):
+                        p = p[1:-1]
+                    if p:
+                        codes.append(p)
+                if codes:
+                    course_codes = codes
+        else:
+            codes = set()
+            pattern = re.compile(r"\b[A-Z]{2,6}\s*-?\s*\d{2,4}\b")
+            for r in getattr(professor, "reviews", []):
+                if not r.text:
+                    continue
+                for m in pattern.findall(r.text.upper()):
+                    codes.add(m.replace('\n', ' ').strip())
+            if codes:
+                course_codes = sorted(codes)
+
+        # normalization to include department prefix when appropriate
+        if course_codes:
+            def derive_dept_code(dept_raw: Optional[str]) -> Optional[str]:
+                if not dept_raw:
+                    return None
+                d = dept_raw.strip()
+                if d.isupper() and d.isalpha() and 2 <= len(d) <= 6:
+                    return d
+                mapping = {
+                    'COMPUTER SCIENCE': 'CMPT',
+                    'COMPUTER SCIENCE AND': 'CMPT',
+                    'CMPT': 'CMPT',
+                    'MATHEMATICS': 'MATH',
+                    'MATH': 'MATH',
+                    'STATISTICS': 'STAT',
+                    'STAT': 'STAT',
+                    'ENGINEERING': 'ENSC',
+                    'ENSC': 'ENSC',
+                    'BIOLOGY': 'BIO',
+                    'PSYCHOLOGY': 'PSYC',
+                    'ECONOMICS': 'ECON',
+                    'CRIMINOLOGY': 'CRIM',
+                    'GENDER STUDIES': 'GSWS',
+                    'BUSINESS ADMINISTRATION': 'BUS',
+                    'EDUCATION': 'EDUC',
+                }
+                key = d.upper()
+                if key in mapping:
+                    return mapping[key]
+                m = re.match(r"([A-Z]{2,6})", key)
+                if m:
+                    return m.group(1)
+                return None
+
+            dept_code = derive_dept_code(professor.department if getattr(professor, 'department', None) else None)
+
+            def normalize_code_entry(code: str) -> str:
+                if not code:
+                    return code
+                orig = code.strip()
+                u = orig.upper()
+                m1 = re.match(r"^([A-Z]{2,6})\s*-?\s*(\d{2,4}\w*)$", u)
+                if m1:
+                    return f"{m1.group(1)} {m1.group(2)}"
+                m2 = re.match(r"^(\d{2,4}\w*)$", u)
+                if m2 and dept_code:
+                    return f"{dept_code} {m2.group(1)}"
+                return u
+
+            course_codes = [normalize_code_entry(c) for c in course_codes]
+
+        return stored, course_codes
+
+    stored_raw, course_codes_out = _extract_and_normalize_course_codes(prof)
+    return {"professor": {"id": prof.id, "name": prof.name, "department": prof.department, "rmp_url": prof.rmp_url, "course_codes": course_codes_out, "reviews": reviews_out, "ai_summary": summary_out}}
+
+
+@app.get("/professors/{prof_id}/debug")
+async def get_professor_debug(prof_id: int, db: Session = Depends(get_db)):
+    prof = db.get(Professor, prof_id)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Professor not found")
+    stored, normalized = _extract_and_normalize_course_codes(prof)
+    return {
+        "professor": {
+            "id": prof.id,
+            "name": prof.name,
+            "department": prof.department,
+            "stored_course_codes": stored,
+            "normalized_course_codes": normalized,
+        }
+    }
 
 
 @app.get("/prof/{prof_id}/summary", response_model=ProfessorSummaryResponse)

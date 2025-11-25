@@ -21,9 +21,10 @@
             
             <form id="lookupForm" class="search-form">
                 <div class="form-row">
-                    <input type="number" id="profId" placeholder="Enter Professor ID" required min="1">
+                    <input type="text" id="profQuery" placeholder="Enter Professor name (e.g., John Smith)" required>
                     <button type="submit" class="btn btn-primary">Search</button>
                 </div>
+                <div id="searchResults" class="search-results"></div>
             </form>
             
             <form id="createForm" class="search-form hidden">
@@ -53,6 +54,7 @@
                 <div class="prof-info">
                     <h2 id="profNameDisplay"></h2>
                     <p class="dept" id="profDeptDisplay"></p>
+                    <div class="courses" id="profCoursesDisplay"></div>
                     <p class="prof-id">ID: <span id="profIdDisplay"></span></p>
                     <a id="profRmpLink" href="#" target="_blank" class="rmp-link hidden">View on RateMyProfessors →</a>
                 </div>
@@ -87,7 +89,10 @@
                 <h3>Reviews <span id="reviewCount" class="review-count"></span></h3>
                 <div id="reviewsContent">
                     <div id="noReviews" class="no-data">No reviews available yet. Click "Fetch New Reviews" to scrape data.</div>
-                    <div id="reviewsList" class="reviews-list"></div>
+                        <div id="reviewsList" class="reviews-list"></div>
+                        <div id="reviewsControls" class="reviews-controls hidden">
+                            <button id="showMoreBtn" class="btn btn-secondary">Show more reviews</button>
+                        </div>
                 </div>
             </div>
         </div>

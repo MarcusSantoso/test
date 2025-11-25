@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const scrapeBtn = document.getElementById('scrapeBtn');
     
     let currentProfId = null;
+    const searchResultsEl = document.getElementById('searchResults');
 
     // Tab switching
     searchTabs.forEach(tab => {
@@ -28,11 +29,45 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Lookup professor
+    // Lookup professor by name (search)
     lookupForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const profId = document.getElementById('profId').value;
-        await loadProfessor(profId);
+        clearMessages();
+        searchResultsEl.innerHTML = '';
+        const query = document.getElementById('profQuery').value.trim();
+        if (!query) return;
+        // Call list endpoint which supports `q` for case-insensitive name search
+        try {
+            const res = await fetch(`/professors/?q=${encodeURIComponent(query)}`);
+            if (!res.ok) {
+                document.getElementById('searchError').textContent = 'Search failed';
+                return;
+            }
+            const data = await res.json();
+            const results = data.professors || [];
+            if (results.length === 0) {
+                document.getElementById('searchError').textContent = 'No professors found';
+                return;
+            }
+            if (results.length === 1) {
+                // Single match — load full details by id
+                await loadProfessor(results[0].id);
+                return;
+            }
+            // Multiple matches — show a selectable list
+            searchResultsEl.innerHTML = `<ul class="result-list">${results.map(r => `<li class="result-item" data-id="${r.id}"><strong>${escapeHtml(r.name)}</strong> <span class="small muted">${escapeHtml(r.department || '')}</span></li>`).join('')}</ul>`;
+            // attach click handlers
+            searchResultsEl.querySelectorAll('.result-item').forEach(el => {
+                el.addEventListener('click', async () => {
+                    const id = el.dataset.id;
+                    document.getElementById('profQuery').value = el.textContent.trim();
+                    searchResultsEl.innerHTML = '';
+                    await loadProfessor(id);
+                });
+            });
+        } catch (err) {
+            document.getElementById('searchError').textContent = 'Network error during search';
+        }
     });
 
     // Create professor
@@ -131,6 +166,34 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('profNameDisplay').textContent = prof.name;
         document.getElementById('profDeptDisplay').textContent = prof.department || 'Department not specified';
         document.getElementById('profIdDisplay').textContent = prof.id;
+        // Render course codes as badges
+        const coursesEl = document.getElementById('profCoursesDisplay');
+        coursesEl.innerHTML = '';
+        const codes = (function(val) {
+            if (!val) return [];
+            if (Array.isArray(val)) return val;
+            try {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                // fall through
+            }
+            return [String(val)];
+        })(prof.course_codes);
+
+        if (codes && codes.length > 0) {
+            const fragment = document.createDocumentFragment();
+            codes.forEach(c => {
+                const span = document.createElement('span');
+                span.className = 'course-badge';
+                span.textContent = c;
+                fragment.appendChild(span);
+                fragment.appendChild(document.createTextNode(' '));
+            });
+            coursesEl.appendChild(fragment);
+        } else {
+            coursesEl.textContent = 'No courses listed';
+        }
         
         const rmpLink = document.getElementById('profRmpLink');
         if (prof.rmp_url) {
@@ -171,20 +234,46 @@ document.addEventListener('DOMContentLoaded', function() {
         if (prof.reviews && prof.reviews.length > 0) {
             noReviews.classList.add('hidden');
             reviewCount.textContent = `(${prof.reviews.length})`;
-            reviewsList.innerHTML = prof.reviews.map(r => `
-                <div class="review-card">
-                    <div class="review-header">
-                        <span class="source-badge ${getSourceClass(r.source)}">${getSourceIcon(r.source)} ${escapeHtml(r.source || 'Unknown')}</span>
-                        ${r.rating ? `<span class="rating">⭐ ${r.rating}/5</span>` : ''}
+
+            // Progressive rendering: show first N reviews and reveal more on demand
+            const INITIAL_REVIEW_COUNT = 5;
+            let shown = Math.min(INITIAL_REVIEW_COUNT, prof.reviews.length);
+
+            function renderSlice(count) {
+                reviewsList.innerHTML = prof.reviews.slice(0, count).map(r => `
+                    <div class="review-card">
+                        <div class="review-header">
+                            <span class="source-badge ${getSourceClass(r.source)}">${getSourceIcon(r.source)} ${escapeHtml(r.source || 'Unknown')}</span>
+                            ${r.rating ? `<span class="rating">⭐ ${r.rating}/5</span>` : ''}
+                        </div>
+                        <p class="review-text">${escapeHtml(r.text || 'No text')}</p>
+                        ${r.timestamp ? `<p class="review-time">${formatDate(r.timestamp)}</p>` : ''}
                     </div>
-                    <p class="review-text">${escapeHtml(r.text || 'No text')}</p>
-                    ${r.timestamp ? `<p class="review-time">${formatDate(r.timestamp)}</p>` : ''}
-                </div>
-            `).join('');
+                `).join('');
+            }
+
+            renderSlice(shown);
+
+            const controls = document.getElementById('reviewsControls');
+            const showMoreBtn = document.getElementById('showMoreBtn');
+            if (prof.reviews.length > INITIAL_REVIEW_COUNT) {
+                controls.classList.remove('hidden');
+                showMoreBtn.textContent = `Show more reviews (${prof.reviews.length - shown})`;
+                showMoreBtn.onclick = () => {
+                    // reveal all reviews when clicked
+                    shown = prof.reviews.length;
+                    renderSlice(shown);
+                    controls.classList.add('hidden');
+                };
+            } else {
+                controls.classList.add('hidden');
+            }
         } else {
             noReviews.classList.remove('hidden');
             reviewCount.textContent = '(0)';
             reviewsList.innerHTML = '';
+            const controls = document.getElementById('reviewsControls');
+            if (controls) controls.classList.add('hidden');
         }
     }
 
@@ -232,10 +321,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 
-    // Check URL params for direct professor lookup
+    // Check URL params for direct professor lookup by id or name
     const params = new URLSearchParams(window.location.search);
     if (params.get('id')) {
-        document.getElementById('profId').value = params.get('id');
+        // legacy support for direct ID param
         loadProfessor(params.get('id'));
+    } else if (params.get('q')) {
+        document.getElementById('profQuery').value = params.get('q');
+        // Trigger search automatically
+        lookupForm.dispatchEvent(new Event('submit'));
     }
 });
