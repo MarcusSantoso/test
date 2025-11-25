@@ -5,6 +5,7 @@ from sqlalchemy import String, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.user_service.models.user import Base
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .review import Review
