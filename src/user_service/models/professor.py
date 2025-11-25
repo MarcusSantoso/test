@@ -6,9 +6,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.user_service.models.user import Base
 
+if TYPE_CHECKING:
+    from .review import Review
+    from .ai_summary import AISummary
+
 
 class Professor(Base):
     __tablename__ = "professors"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -19,5 +24,9 @@ class Professor(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # relationships
-    reviews = relationship("Review", back_populates="professor", cascade="all, delete-orphan")
-    ai_summary = relationship("AISummary", back_populates="professor", uselist=False, cascade="all, delete-orphan")
+    reviews: Mapped[list["Review"]] = relationship(
+        "Review", back_populates="professor", cascade="all, delete-orphan"
+    )
+    ai_summary: Mapped["AISummary"] = relationship(
+        "AISummary", back_populates="professor", uselist=False, cascade="all, delete-orphan"
+    )
