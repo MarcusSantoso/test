@@ -88,34 +88,12 @@ class SummaryService:
                 prof_id, summary, reviews, review_count, persist=persist
             )
 
-        # If we have an existing stored summary but no transient human-friendly
-        # paragraph cached on the instance, synthesize a short lively
-        # `text_summary` from the stored pros/cons/neutral. This avoids a DB
-        # migration while still providing a nice paragraph for the UI.
-        if summary and not getattr(summary, "_text_summary_cached", None):
-            try:
-                # build a small instruction and input describing the structured
-                # summary and ask the engine to produce a 1-2 sentence lively
-                # paragraph (keep under 50 words).
-                small_input = json.dumps({
-                    "pros": summary.pros or [],
-                    "cons": summary.cons or [],
-                    "neutral": summary.neutral or [],
-                }, ensure_ascii=False)
-                instr = (
-                    "Given the following structured summary (JSON) of a professor's reviews,"
-                    " write a single lively, professional 1-2 sentence paragraph that fairly summarizes the overall impression."
-                    " Keep under 50 words. Respond ONLY with the paragraph (no JSON)."
-                )
-                # include the small_input as the text to summarize
-                txt, _raw = await self.engine.summarize_with_raw(
-                    small_input, options=SummarizationOptions(instructions=instr, max_words=50)
-                )
-                # record transiently on the instance for API serialization
-                setattr(summary, "_text_summary_cached", (txt or "").strip())
-            except Exception:
-                # don't fail the whole flow for a minor post-processing step
-                setattr(summary, "_text_summary_cached", "")
+        # We deliberately avoid making additional AI calls here to synthesize
+        # a human-friendly paragraph on read; doing so would cause one-off
+        # model calls on every GET and increase cost and test flakiness. The
+        # API serialization layer (`_serialize_professor_summary`) will
+        # synthesize a compact fallback from stored bullets when needed, and
+        # explicit generation should be done via the refresh endpoint.
 
         return summary
 

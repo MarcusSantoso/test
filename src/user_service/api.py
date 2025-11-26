@@ -1071,7 +1071,7 @@ def _extract_and_normalize_course_codes(professor: Professor):
 @app.get("/professors/{prof_id}")
 async def get_professor(
     prof_id: int,
-    include_summary: bool = Query(False, description="Include stored AI summary in response"),
+    include_summary: bool = Query(True, description="Include stored AI summary in response"),
     db: Session = Depends(get_db),
 ):
     prof = db.get(Professor, prof_id)
