@@ -24,3 +24,23 @@ db:up: db-up
 
 db:restore: db-restore-sample
 
+
+.PHONY: create-test-db docker-test test
+
+# Create the configured test DB inside the running Postgres container (no-op if exists)
+create-test-db:
+	@echo "Creating test database '${POSTGRES_DB}' inside the db container (if missing)"
+	@docker compose exec db bash -lc "createdb -U ${POSTGRES_USER:-postgres} ${POSTGRES_DB} || true"
+
+# Run the full pytest suite inside the web container using the compose DB/Redis
+docker-test: db-up create-test-db
+	@echo "Running pytest inside docker (web) with DATABASE_URL pointed at compose db"
+	@docker compose run --rm \
+		-e DATABASE_URL=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB) \
+		-e REDIS_URL=redis://redis:6379/0 \
+		web pytest -q
+
+# Convenience local test alias (assumes .venv exists)
+test:
+	@.venv/bin/pytest -q
+
