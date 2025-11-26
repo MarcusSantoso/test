@@ -52,6 +52,51 @@ This project reads configuration from environment variables. Below are the prima
 - `OPENAI_SUMMARY_MAX_WORDS` (optional): Maximum allowed words for generated summaries (optional tuning knob).
 - `AUTH_TTL_SECONDS` (optional): TTL used by analytics code; defaults to `300` when unset.
 
+## Local Development: Recommended Workflow
+
+When developing locally you should prefer running the full stack with Docker Compose so every developer runs the same services and the app talks to a reproducible database host name (`db`). This avoids using host-specific addresses like `host.docker.internal` and matches containerized deployments.
+
+- Start the core services:
+
+```bash
+docker compose up -d db redis web
+```
+
+- Create the database (if needed) and apply migrations from the web container:
+
+```bash
+docker compose exec web alembic upgrade head
+```
+
+- Recommended `.env` for local Compose-based development (DO NOT commit):
+
+```dotenv
+# Use the Compose `db` service as the hostname so containers resolve consistently
+POSTGRES_HOST=db
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=user_service
+REDIS_URL=redis://redis:6379/0
+# Optional: disable remote DATABASE_URL while developing locally
+# DATABASE_URL=
+```
+
+- Why use `db` (Compose service name):
+	- Containers use the Compose internal DNS to resolve `db` to the Postgres container.
+	- It is portable for teammates and CI and mirrors production usage where the app uses a single canonical DB host.
+	- Avoids platform-specific DNS like `host.docker.internal` which is only for host access and not portable.
+
+- Quick verification:
+
+```bash
+# from host: check that the app responds
+curl http://127.0.0.1:8000/professors/?limit=1
+
+# inside the db container: check contents
+docker compose exec db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-user_service} -c "select count(*) from professors;"
+```
+
+
 Precedence and notes:
 - The code prefers `DATABASE_URL` if present and reachable; if it's unreachable the loader falls back to component vars (`DATABASE_*` or `POSTGRES_*`).
 - `REDIS_URL` is required — `get_redis()` will raise if it's missing.
