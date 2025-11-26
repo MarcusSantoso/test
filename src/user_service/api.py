@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import FastAPI, Depends, Response, HTTPException, Request, status, UploadFile, File
+from fastapi import FastAPI, Depends, Response, HTTPException, Request, status, UploadFile, File, Query
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 from src.shared.jwt_utils import issue_jwt, verify_jwt, JWTError
@@ -129,6 +129,7 @@ class ProfessorSummaryPayload(BaseModel):
     pros: List[str]
     cons: List[str]
     neutral: List[str]
+    text_summary: Optional[str] = None
     updated_at: datetime
 
 
@@ -160,11 +161,41 @@ def _serialize_professor_summary(summary: AISummary) -> ProfessorSummaryPayload:
     elif updated_at.tzinfo is None:
         updated_at = updated_at.replace(tzinfo=timezone.utc)
 
+    pros = _coerce_summary_list(summary.pros)
+    cons = _coerce_summary_list(summary.cons)
+    neutral = _coerce_summary_list(summary.neutral)
+
+    # Prefer the transient cached human paragraph when available. If it's
+    # missing but we have structured bullets, synthesize a short, lively
+    # single-sentence summary to improve the UI experience without needing
+    # an immediate AI call or DB migration.
+    text_summary = getattr(summary, "_text_summary_cached", None)
+    if not text_summary:
+        # Build a compact human-friendly line from the most representative
+        # bullets. Keep it short (under ~40 words).
+        parts = []
+        if pros:
+            parts.append(pros[0])
+        if cons:
+            parts.append("but " + cons[0])
+        if not parts and neutral:
+            parts.append(neutral[0])
+        if parts:
+            # join parts into a tidy sentence
+            s = ", ".join(parts)
+            if not s.endswith('.'):
+                s = s.rstrip('.') + '.'
+            # Capitalize first letter
+            text_summary = s[0].upper() + s[1:]
+        else:
+            text_summary = None
+
     return ProfessorSummaryPayload(
         prof_id=summary.prof_id,
-        pros=_coerce_summary_list(summary.pros),
-        cons=_coerce_summary_list(summary.cons),
-        neutral=_coerce_summary_list(summary.neutral),
+        pros=pros,
+        cons=cons,
+        neutral=neutral,
+        text_summary=text_summary or None,
         updated_at=updated_at,
     )
 
@@ -1038,7 +1069,11 @@ def _extract_and_normalize_course_codes(professor: Professor):
 
 
 @app.get("/professors/{prof_id}")
-async def get_professor(prof_id: int, db: Session = Depends(get_db)):
+async def get_professor(
+    prof_id: int,
+    include_summary: bool = Query(False, description="Include stored AI summary in response"),
+    db: Session = Depends(get_db),
+):
     prof = db.get(Professor, prof_id)
     if not prof:
         raise HTTPException(status_code=404, detail="Professor not found")
@@ -1046,10 +1081,22 @@ async def get_professor(prof_id: int, db: Session = Depends(get_db)):
     reviews_out = []
     for r in getattr(prof, "reviews", []):
         reviews_out.append({"id": r.id, "text": r.text, "rating": r.rating, "source": r.source})
-    summary = getattr(prof, "ai_summary", None)
+    # compute rating aggregates (only consider numeric ratings)
+    ratings = [r.rating for r in getattr(prof, "reviews", []) if getattr(r, 'rating', None) is not None]
+    rating_average = None
+    rating_count = 0
+    if ratings:
+        try:
+            rating_average = round(float(sum(ratings)) / len(ratings), 1)
+            rating_count = len(ratings)
+        except Exception:
+            rating_average = None
+            rating_count = len(ratings)
     summary_out = None
-    if summary:
-        summary_out = _serialize_professor_summary(summary).model_dump()
+    if include_summary:
+        summary = getattr(prof, "ai_summary", None)
+        if summary:
+            summary_out = _serialize_professor_summary(summary).model_dump()
     # Delegate course-code extraction/normalization to a helper so it can be
     # reused and debugged more easily.
     def _extract_and_normalize_course_codes(professor: Professor):
@@ -1151,7 +1198,19 @@ async def get_professor(prof_id: int, db: Session = Depends(get_db)):
         return stored, course_codes
 
     stored_raw, course_codes_out = _extract_and_normalize_course_codes(prof)
-    return {"professor": {"id": prof.id, "name": prof.name, "department": prof.department, "rmp_url": prof.rmp_url, "course_codes": course_codes_out, "reviews": reviews_out, "ai_summary": summary_out}}
+    return {
+        "professor": {
+            "id": prof.id,
+            "name": prof.name,
+            "department": prof.department,
+            "rmp_url": prof.rmp_url,
+            "course_codes": course_codes_out,
+            "reviews": reviews_out,
+            "ai_summary": summary_out,
+            "rating_average": rating_average,
+            "rating_count": rating_count,
+        }
+    }
 
 
 @app.get("/professors/{prof_id}/debug")
@@ -1174,10 +1233,11 @@ async def get_professor_debug(prof_id: int, db: Session = Depends(get_db)):
 @app.get("/prof/{prof_id}/summary", response_model=ProfessorSummaryResponse)
 async def get_professor_summary_endpoint(
     prof_id: int,
+    auto_refresh: bool = True,
     summary_service: SummaryService = Depends(_get_summary_service),
 ):
     try:
-        summary = await summary_service.fetch_summary(prof_id, auto_refresh=True)
+        summary = await summary_service.fetch_summary(prof_id, auto_refresh=auto_refresh)
     except LookupError:
         raise HTTPException(status_code=404, detail="Professor not found")
     except ValueError as exc:
@@ -1188,16 +1248,21 @@ async def get_professor_summary_endpoint(
 @app.post("/prof/{prof_id}/summary/refresh", response_model=ProfessorSummaryResponse)
 async def refresh_professor_summary_endpoint(
     prof_id: int,
+    persist: bool = Query(True, description="If false, generate summary transiently and do not persist to DB"),
     summary_service: SummaryService = Depends(_get_summary_service),
 ):
     try:
+        # Force a fresh summarization run. `persist` controls whether the
+        # resulting AISummary is written to the DB or returned transiently.
         summary = await summary_service.fetch_summary(
-            prof_id, auto_refresh=False, force_refresh=True
+            prof_id, auto_refresh=False, force_refresh=True, persist=persist
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Professor not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     return {"summary": _serialize_professor_summary(summary)}
 
 @app.post("/scrape/{prof_id}")

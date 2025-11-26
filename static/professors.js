@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const professorDetails = document.getElementById('professorDetails');
     const loading = document.getElementById('loading');
     const scrapeBtn = document.getElementById('scrapeBtn');
+    const generateSummaryBtn = document.getElementById('generateSummaryBtn');
     
     let currentProfId = null;
     const searchResultsEl = document.getElementById('searchResults');
@@ -136,6 +137,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Generate AI summary manually
+    if (generateSummaryBtn) {
+        generateSummaryBtn.addEventListener('click', async () => {
+            if (!currentProfId) return;
+            generateSummaryBtn.disabled = true;
+            generateSummaryBtn.textContent = 'Generating...';
+            try {
+                const res = await fetch(`/prof/${currentProfId}/summary/refresh`, { method: 'POST' });
+                if (res.ok) {
+                    const j = await (await fetch(`/prof/${currentProfId}/summary`)).json();
+                    if (j && j.summary) {
+                        // re-render with fresh summary
+                        const profRes = await fetch(`/professors/${currentProfId}`);
+                        const pdata = await profRes.json();
+                        if (pdata && pdata.professor) {
+                            pdata.professor.ai_summary = j.summary;
+                            renderProfessor(pdata.professor);
+                        }
+                    }
+                } else {
+                    alert('Failed to generate summary.');
+                }
+            } catch (err) {
+                alert('Network error while generating summary');
+            } finally {
+                generateSummaryBtn.disabled = false;
+                generateSummaryBtn.textContent = '🧠 Generate AI Summary';
+            }
+        });
+    }
+
     async function loadProfessor(profId) {
         clearMessages();
         professorDetails.classList.add('hidden');
@@ -153,6 +185,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.professor) {
                 currentProfId = data.professor.id;
                 renderProfessor(data.professor);
+                // Do NOT fetch or auto-generate AI summaries on initial lookup.
+                // The user must click the "Generate AI Summary" button to
+                // explicitly request generation. This keeps the initial load
+                // fast and avoids unexpected AI calls.
+
                 professorDetails.classList.remove('hidden');
             }
         } catch (err) {
@@ -205,11 +242,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Render AI Summary
         const noSummary = document.getElementById('noSummary');
+        const textSummaryEl = document.getElementById('textSummary');
         const summaryCards = document.getElementById('summaryCards');
         const summaryUpdated = document.getElementById('summaryUpdated');
         
         if (prof.ai_summary) {
             noSummary.classList.add('hidden');
+
+            // Show human-friendly paragraph when available
+            if (prof.ai_summary.text_summary) {
+                textSummaryEl.textContent = prof.ai_summary.text_summary;
+                textSummaryEl.classList.remove('hidden');
+            } else {
+                textSummaryEl.textContent = '';
+                textSummaryEl.classList.add('hidden');
+            }
+
             summaryCards.classList.remove('hidden');
             renderList('prosList', prof.ai_summary.pros);
             renderList('consList', prof.ai_summary.cons);
@@ -222,6 +270,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             noSummary.classList.remove('hidden');
+            textSummaryEl.textContent = '';
+            textSummaryEl.classList.add('hidden');
             summaryCards.classList.add('hidden');
             summaryUpdated.classList.add('hidden');
         }
@@ -230,10 +280,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const noReviews = document.getElementById('noReviews');
         const reviewsList = document.getElementById('reviewsList');
         const reviewCount = document.getElementById('reviewCount');
+        const ratingAverageEl = document.getElementById('ratingAverage');
         
         if (prof.reviews && prof.reviews.length > 0) {
             noReviews.classList.add('hidden');
             reviewCount.textContent = `(${prof.reviews.length})`;
+            // Render rating average if provided by API
+            if (typeof prof.rating_average !== 'undefined' && prof.rating_average !== null) {
+                ratingAverageEl.textContent = `⭐ ${prof.rating_average}/5 (${prof.rating_count || 0})`;
+                ratingAverageEl.classList.remove('hidden');
+            } else {
+                ratingAverageEl.textContent = '';
+                ratingAverageEl.classList.add('hidden');
+            }
 
             // Progressive rendering: show first N reviews and reveal more on demand
             const INITIAL_REVIEW_COUNT = 5;
@@ -271,6 +330,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             noReviews.classList.remove('hidden');
             reviewCount.textContent = '(0)';
+            ratingAverageEl.textContent = '';
+            ratingAverageEl.classList.add('hidden');
             reviewsList.innerHTML = '';
             const controls = document.getElementById('reviewsControls');
             if (controls) controls.classList.add('hidden');

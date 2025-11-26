@@ -63,9 +63,10 @@
             
             <!-- AI Summary Section -->
             <div class="ai-summary-section">
-                <h3>AI Summary</h3>
+                <h3>AI Summary <button id="generateSummaryBtn" class="btn btn-secondary small">🧠 Generate AI Summary</button></h3>
                 <div id="aiSummaryContent">
                     <div id="noSummary" class="no-data">No AI summary available yet.</div>
+                    <p id="textSummary" class="text-summary hidden"></p>
                     <div id="summaryCards" class="summary-cards hidden">
                         <div class="summary-card pros">
                             <h4>Pros</h4>
@@ -86,7 +87,7 @@
             
             <!-- Reviews Section -->
             <div class="reviews-section">
-                <h3>Reviews <span id="reviewCount" class="review-count"></span></h3>
+                <h3>Reviews <span id="ratingAverage" class="rating-average"></span> <span id="reviewCount" class="review-count"></span></h3>
                 <div id="reviewsContent">
                     <div id="noReviews" class="no-data">No reviews available yet. Click "Fetch New Reviews" to scrape data.</div>
                         <div id="reviewsList" class="reviews-list"></div>

@@ -133,6 +133,16 @@ class AISummarizationEngine:
             return repr(response)
 
         def _call_openai() -> tuple[str, str]:
+            # Request a larger output token budget so the model doesn't exhaust
+            # its token limit producing internal "reasoning" only. Use a
+            # conservative multiplier and cap to avoid runaway token requests.
+            # Use a larger output token budget for long/structured prompts;
+            # some model runs produce mostly internal "reasoning" tokens and
+            # exhaust the output token limit. Increase multiplier and cap to
+            # reduce incomplete responses. Also set a lower temperature for
+            # more deterministic JSON output.
+            requested_tokens = max(256, max_words * 10)
+            requested_tokens = min(requested_tokens, 8192)
             response = self._client.responses.create(  # type: ignore[attr-defined]
                 model=self.model,
                 input=[
@@ -142,7 +152,7 @@ class AISummarizationEngine:
                         "content": f"Summarize in <= {max_words} words:\n{cleaned}",
                     },
                 ],
-                max_output_tokens=max(64, max_words * 2),
+                max_output_tokens=requested_tokens,
             )
             text = _coerce_response_text(
                 getattr(response, "output_text", None) or getattr(response, "output", None)
