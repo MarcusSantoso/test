@@ -39,6 +39,29 @@ You can visit `localhost:8000/admin`, `localhost:8000/docs`, and `localhost:8000
 
 If you edit any of the files in this repo, the server restarts to reflect your changes.
 
+## Environment
+
+This project reads configuration from environment variables. Below are the primary variables teammates should know about when running the app or the test suite.
+
+- `DATABASE_URL` (optional, preferred): Full SQLAlchemy connection string, e.g. `postgresql://postgres:postgres@db:5432/professors_test`. If present the app will try to use this first.
+- `REDIS_URL` (required): Redis connection string used by the request/event logging and other features, e.g. `redis://redis:6379/0`.
+- `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` (or `DATABASE_USER` / `DATABASE_PASSWORD` / `DATABASE_NAME`): Component variables used to construct a DB URL when `DATABASE_URL` is not provided. Example for Docker/CI: `postgres` / `postgres` / `professors_test`.
+- `POSTGRES_HOST` / `DATABASE_HOST` (optional): Hostname for Postgres when constructing a DB URL from components; for compose use `db`.
+- `OPENAI_API_KEY` (optional): API key to enable AI summarization. If omitted, summarization features are disabled or will raise when invoked.
+- `OPENAI_SUMMARY_MODEL` (optional): Name of the model used by the AI wrapper (default: `gpt-5-mini`).
+- `OPENAI_SUMMARY_MAX_WORDS` (optional): Maximum allowed words for generated summaries (optional tuning knob).
+- `AUTH_TTL_SECONDS` (optional): TTL used by analytics code; defaults to `300` when unset.
+
+Precedence and notes:
+- The code prefers `DATABASE_URL` if present and reachable; if it's unreachable the loader falls back to component vars (`DATABASE_*` or `POSTGRES_*`).
+- `REDIS_URL` is required — `get_redis()` will raise if it's missing.
+- For local Docker/CI runs, set `POSTGRES_HOST=db` (or set `DATABASE_URL` to use `@db:5432/...`).
+
+Security:
+- Do not commit secrets (API keys, DB passwords) into git. Keep a local `.env` file in your development environment that is listed in `.gitignore` and share values via a secure channel.
+- If this repository contains a checked-in `.env` with secrets, remove it and rotate any exposed keys immediately.
+
+
 
 3. You can follow the logs by running:
 ```
@@ -137,4 +160,69 @@ Notes:
 	data for developer onboarding.
 - Always commit Alembic migration files alongside code that requires schema
 	changes so teammates can run `alembic upgrade head` to get the right schema.
+
+
+## How to run tests (local and in Docker)
+
+Below are the recommended steps teammates should follow to run the test suite. The Docker-based flow matches CI and is preferred when validating changes before a PR.
+
+Prerequisites:
+- Docker + Docker Compose plugin
+- Python 3.13 (for local venv runs)
+
+1) Quick local test run (using a Python venv):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pytest -q
+```
+
+2) Recommended: CI-like Docker test run (matches what CI executes):
+
+Set sensible defaults (zsh/mac):
+
+```bash
+export POSTGRES_USER=postgres
+export POSTGRES_PASSWORD=postgres
+export POSTGRES_DB=professors_test
+export REDIS_URL=redis://redis:6379/0
+```
+
+Start Postgres and Redis:
+
+```bash
+docker compose up -d db redis
+```
+
+Create the test DB inside the Postgres container if it does not already exist:
+
+```bash
+docker compose exec db bash -lc "createdb -U ${POSTGRES_USER:-postgres} ${POSTGRES_DB} || true"
+```
+
+Run the tests inside the `web` container with the `DATABASE_URL` forced to use the compose `db` host:
+
+```bash
+docker compose run --rm \
+	-e DATABASE_URL=postgresql://postgres:postgres@db:5432/${POSTGRES_DB} \
+	-e REDIS_URL=redis://redis:6379/0 \
+	web pytest -q
+```
+
+Expected: tests should pass (example from local run: `132 passed, 1 warning`).
+
+3) One-line Makefile helper (available in this repo):
+
+You can also use the Makefile targets we added to automate DB creation and the docker test run:
+
+```bash
+export POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres POSTGRES_DB=professors_test
+make docker-test
+```
+
+Notes:
+- If you see failures during Alembic migrations, confirm `POSTGRES_DB` exists in the running Postgres container (the `create-test-db` Makefile target runs `createdb` to help with this).
+- For CI, ensure your pipeline creates the DB and/or sets `DATABASE_URL` to point to the test DB used by the job.
 

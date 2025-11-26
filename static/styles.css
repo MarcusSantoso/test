@@ -128,6 +128,10 @@ h3 { color: #444; margin-bottom: 15px; font-size: 18px; }
 .rmp-link { color: #e63946; text-decoration: none; font-size: 14px; }
 .rmp-link:hover { text-decoration: underline; }
 
+/* Course badges */
+.courses { margin-bottom: 8px; }
+.course-badge { display: inline-block; background: #eef6ff; color: #034; border: 1px solid #cfe4ff; padding: 6px 8px; border-radius: 6px; font-size: 13px; margin-right: 6px; margin-bottom: 6px; }
+
 /* AI Summary */
 .ai-summary-section { margin-bottom: 30px; }
 .ai-summary-section h3 { border-bottom: 2px solid #eee; padding-bottom: 10px; }

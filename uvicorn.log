@@ -1,0 +1,575 @@
+INFO:     Will watch for changes in these directories: ['/Users/bedropark/user_service']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [5193] using WatchFiles
+INFO:     Started server process [5245]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:root:DATABASE_URL provided but connection failed (postgresql://user_service_db_bvxf_user:7RlfWs5dC9h3xnYDB6onYmn3SMP8X1a2@dpg-d4fvusqdbo4c739s6s6g-a/user_service_db_bvxf). Falling back to POSTGRES_*/localhost. Error: (psycopg2.OperationalError) could not translate host name "dpg-d4fvusqdbo4c739s6s6g-a" to address: nodename nor servname provided, or not known
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:50278 - "GET /professors/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50320 - "GET /static/professors.html HTTP/1.1" 304 Not Modified
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:50320 - "GET /professors/?q=cristina HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:50320 - "GET /professors/56 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'scripts/convert_rmp_to_tid.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5245]
+INFO:     Started server process [5719]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:50398 - "GET /static/professors.html HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:50398 - "GET /static/professors.html HTTP/1.1" 304 Not Modified
+WARNING:root:DATABASE_URL provided but connection failed (postgresql://user_service_db_bvxf_user:7RlfWs5dC9h3xnYDB6onYmn3SMP8X1a2@dpg-d4fvusqdbo4c739s6s6g-a/user_service_db_bvxf). Falling back to POSTGRES_*/localhost. Error: (psycopg2.OperationalError) could not translate host name "dpg-d4fvusqdbo4c739s6s6g-a" to address: nodename nor servname provided, or not known
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:50398 - "GET /professors/?q=sonja HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:50398 - "GET /professors/129 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5719]
+INFO:     Started server process [7074]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in '.venv/lib/python3.13/site-packages/urllib3/response.py', '.venv/lib/python3.13/site-packages/urllib3/util/proxy.py', '.venv/lib/python3.13/site-packages/charset_normalizer/cli/__init__.py', '.venv/lib/python3.13/site-packages/charset_normalizer/__main__.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/fetch.py', '.venv/lib/python3.13/site-packages/bs4/_warnings.py', '.venv/lib/python3.13/site-packages/urllib3/filepost.py', '.venv/lib/python3.13/site-packages/requests/certs.py', '.venv/lib/python3.13/site-packages/urllib3/connection.py', '.venv/lib/python3.13/site-packages/urllib3/util/response.py', '.venv/lib/python3.13/site-packages/charset_normalizer/constant.py', '.venv/lib/python3.13/site-packages/urllib3/http2/connection.py', '.venv/lib/python3.13/site-packages/bs4/_deprecation.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/__init__.py', '.venv/lib/python3.13/site-packages/urllib3/util/ssltransport.py', '.venv/lib/python3.13/site-packages/soupsieve/css_match.py', '.venv/lib/python3.13/site-packages/soupsieve/pretty.py', '.venv/lib/python3.13/site-packages/soupsieve/css_parser.py', '.venv/lib/python3.13/site-packages/urllib3/_collections.py', '.venv/lib/python3.13/site-packages/requests/utils.py', '.venv/lib/python3.13/site-packages/soupsieve/__init__.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/request.py', '.venv/lib/python3.13/site-packages/requests/__init__.py', '.venv/lib/python3.13/site-packages/soupsieve/__meta__.py', '.venv/lib/python3.13/site-packages/requests/auth.py', '.venv/lib/python3.13/site-packages/charset_normalizer/md.py', '.venv/lib/python3.13/site-packages/urllib3/util/util.py', '.venv/lib/python3.13/site-packages/requests/adapters.py', '.venv/lib/python3.13/site-packages/charset_normalizer/utils.py', '.venv/lib/python3.13/site-packages/bs4/builder/_htmlparser.py', '.venv/lib/python3.13/site-packages/urllib3/fields.py', '.venv/lib/python3.13/site-packages/bs4/__init__.py', '.venv/lib/python3.13/site-packages/urllib3/util/ssl_.py', '.venv/lib/python3.13/site-packages/requests/compat.py', '.venv/lib/python3.13/site-packages/urllib3/util/connection.py', '.venv/lib/python3.13/site-packages/requests/hooks.py', '.venv/lib/python3.13/site-packages/requests/packages.py', '.venv/lib/python3.13/site-packages/charset_normalizer/version.py', '.venv/lib/python3.13/site-packages/urllib3/util/url.py', '.venv/lib/python3.13/site-packages/charset_normalizer/cli/__main__.py', '.venv/lib/python3.13/site-packages/urllib3/http2/probe.py', '.venv/lib/python3.13/site-packages/requests/__version__.py', '.venv/lib/python3.13/site-packages/bs4/diagnose.py', '.venv/lib/python3.13/site-packages/urllib3/connectionpool.py', '.venv/lib/python3.13/site-packages/requests/api.py', '.venv/lib/python3.13/site-packages/requests/exceptions.py', '.venv/lib/python3.13/site-packages/bs4/builder/_html5lib.py', '.venv/lib/python3.13/site-packages/charset_normalizer/__init__.py', '.venv/lib/python3.13/site-packages/charset_normalizer/legacy.py', '.venv/lib/python3.13/site-packages/requests/cookies.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/pyopenssl.py', '.venv/lib/python3.13/site-packages/bs4/formatter.py', '.venv/lib/python3.13/site-packages/urllib3/exceptions.py', '.venv/lib/python3.13/site-packages/bs4/exceptions.py', '.venv/lib/python3.13/site-packages/urllib3/util/ssl_match_hostname.py', '.venv/lib/python3.13/site-packages/urllib3/_base_connection.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/response.py', '.venv/lib/python3.13/site-packages/urllib3/util/__init__.py', '.venv/lib/python3.13/site-packages/urllib3/poolmanager.py', '.venv/lib/python3.13/site-packages/bs4/css.py', '.venv/lib/python3.13/site-packages/requests/_internal_utils.py', '.venv/lib/python3.13/site-packages/urllib3/util/timeout.py', '.venv/lib/python3.13/site-packages/bs4/builder/__init__.py', '.venv/lib/python3.13/site-packages/requests/status_codes.py', '.venv/lib/python3.13/site-packages/urllib3/util/retry.py', '.venv/lib/python3.13/site-packages/urllib3/http2/__init__.py', '.venv/lib/python3.13/site-packages/requests/structures.py', '.venv/lib/python3.13/site-packages/bs4/dammit.py', '.venv/lib/python3.13/site-packages/bs4/builder/_lxml.py', '.venv/lib/python3.13/site-packages/requests/help.py', '.venv/lib/python3.13/site-packages/soupsieve/css_types.py', '.venv/lib/python3.13/site-packages/bs4/filter.py', '.venv/lib/python3.13/site-packages/charset_normalizer/models.py', '.venv/lib/python3.13/site-packages/requests/sessions.py', '.venv/lib/python3.13/site-packages/bs4/element.py', '.venv/lib/python3.13/site-packages/charset_normalizer/api.py', '.venv/lib/python3.13/site-packages/requests/models.py', '.venv/lib/python3.13/site-packages/urllib3/__init__.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/connection.py', '.venv/lib/python3.13/site-packages/urllib3/_version.py', '.venv/lib/python3.13/site-packages/urllib3/util/request.py', '.venv/lib/python3.13/site-packages/soupsieve/util.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/socks.py', '.venv/lib/python3.13/site-packages/bs4/_typing.py', '.venv/lib/python3.13/site-packages/charset_normalizer/cd.py', '.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/__init__.py', '.venv/lib/python3.13/site-packages/urllib3/_request_methods.py', '.venv/lib/python3.13/site-packages/urllib3/util/wait.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7074]
+INFO:     Started server process [7526]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7526]
+INFO:     Started server process [7823]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:51396 - "GET /static/professors.html HTTP/1.1" 304 Not Modified
+WARNING:root:DATABASE_URL provided but connection failed (postgresql://user_service_db_bvxf_user:7RlfWs5dC9h3xnYDB6onYmn3SMP8X1a2@dpg-d4fvusqdbo4c739s6s6g-a/user_service_db_bvxf). Falling back to POSTGRES_*/localhost. Error: (psycopg2.OperationalError) could not translate host name "dpg-d4fvusqdbo4c739s6s6g-a" to address: nodename nor servname provided, or not known
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:51396 - "GET /professors/?q=herbert HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:51396 - "GET /professors/2 HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:51397 - "GET /professors/?q=ivelina HTTP/1.1" 200 OK
+ERROR:    Failed to log request event
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 307, in connect_check_health
+    await self.retry.call_with_retry(
+        lambda: self._connect(), lambda error: self.disconnect()
+    )
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/retry.py", line 50, in call_with_retry
+    return await do()
+           ^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 768, in _connect
+    reader, writer = await asyncio.open_connection(
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        **self._connection_arguments()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/streams.py", line 48, in open_connection
+    transport, _ = await loop.create_connection(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        lambda: protocol, host, port, **kwds)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 1982, in create_connection
+socket.gaierror: [Errno 8] nodename nor servname provided, or not known
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 24, in log_request
+    await self._write_event(request, response_status)
+  File "/Users/bedropark/user_service/src/event_service/logging.py", line 52, in _write_event
+    await repo.create(event)
+  File "/Users/bedropark/user_service/src/event_service/repository.py", line 42, in create
+    event_id = int(await self.redis.incr(COUNTER_KEY))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 720, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1198, in get_connection
+    await self.ensure_connection(connection)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1231, in ensure_connection
+    await connection.connect()
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    await self.connect_check_health(check_health=True)
+  File "/Users/bedropark/user_service/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 317, in connect_check_health
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 8 connecting to red-d4gafqnpm1nc738h2no0:6379. nodename nor servname provided, or not known.
+INFO:     127.0.0.1:51397 - "GET /professors/38 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in '.venv/lib/python3.13/site-packages/playwright/_impl/__pyinstaller/hook-playwright.async_api.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_selectors.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_waiter.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_switch_two_greenlets.py', '.venv/lib/python3.13/site-packages/playwright/__main__.py', '.venv/lib/python3.13/site-packages/playwright/_impl/__pyinstaller/hook-playwright.sync_api.py', '.venv/lib/python3.13/site-packages/playwright/_repo_version.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_web_error.py', '.venv/lib/python3.13/site-packages/greenlet/tests/__init__.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_driver.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_browser_type.py', '.venv/lib/python3.13/site-packages/playwright/_impl/__pyinstaller/__init__.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_cpp.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_network.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_generator_nested.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_clock.py', '.venv/lib/python3.13/site-packages/playwright/_impl/__init__.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_tracing.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_clearing_run_switches.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_async_base.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_event_context_manager.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_artifact.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_stream.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_element_handle.py', '.venv/lib/python3.13/site-packages/playwright/async_api/_context_manager.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_initialstub_already_started.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_transport.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_accessibility.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_frame.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_fetch.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_cpp_exception.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_contextvars.py', '.venv/lib/python3.13/site-packages/playwright/async_api/_generated.py', '.venv/lib/python3.13/site-packages/playwright/async_api/__init__.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_extension_interface.py', '.venv/lib/python3.13/site-packages/greenlet/__init__.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_locator.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_set_input_files_helpers.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_har_router.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_switch_three_greenlets.py', '.venv/lib/python3.13/site-packages/pyee/asyncio.py', '.venv/lib/python3.13/site-packages/greenlet/platform/__init__.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_page.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_greenlet_trash.py', '.venv/lib/python3.13/site-packages/playwright/__init__.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_api_structures.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_gc.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_errors.py', '.venv/lib/python3.13/site-packages/greenlet/tests/leakcheck.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_dialog.py', '.venv/lib/python3.13/site-packages/pyee/__init__.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_json_pipe.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_console_message.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_local_utils.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_greenlet.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_input.py', '.venv/lib/python3.13/site-packages/pyee/base.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_download.py', '.venv/lib/python3.13/site-packages/pyee/executor.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_writable_stream.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_greenlets.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_leaks.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_version.py', '.venv/lib/python3.13/site-packages/pyee/twisted.py', '.venv/lib/python3.13/site-packages/pyee/cls.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_generator.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_throw.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_path_utils.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_weakref.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_map.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_impl_to_api_mapping.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_str_utils.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_playwright.py', '.venv/lib/python3.13/site-packages/pyee/trio.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_connection.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_file_chooser.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_slp_switch.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_js_handle.py', '.venv/lib/python3.13/site-packages/greenlet/tests/test_stack_saved.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_browser_context.py', '.venv/lib/python3.13/site-packages/greenlet/tests/fail_switch_three_greenlets2.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_cdp_session.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_object_factory.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_browser.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_glob.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_assertions.py', '.venv/lib/python3.13/site-packages/pyee/uplift.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_video.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_helper.py', '.venv/lib/python3.13/site-packages/playwright/_impl/_tracing.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7823]
+WARNING:  WatchFiles detected changes in '.venv/lib/python3.13/site-packages/playwright/sync_api/__init__.py', '.venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py', '.venv/lib/python3.13/site-packages/playwright/sync_api/_context_manager.py'. Reloading...
+INFO:     Started server process [8383]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8390]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_playwright.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8390]
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_playwright.py'. Reloading...
+INFO:     Started server process [8478]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [8481]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:51800 - "GET /static/professors.html HTTP/1.1" 304 Not Modified
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_graphql.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8481]
+INFO:     Started server process [11050]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/fill_rmp_urls.py', 'scripts/resolve_rmp_tids_graphql.py', 'scripts/resolve_rmp_tids_playwright.py', 'scripts/convert_rmp_to_tid.py', 'src/user_service/api.py', 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11050]
+INFO:     Started server process [11067]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11067]
+INFO:     Started server process [11113]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11113]
+INFO:     Started server process [11598]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11598]
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Started server process [11638]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [11639]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_graphql.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [11639]
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_graphql.py'. Reloading...
+INFO:     Started server process [12042]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [12052]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12052]
+INFO:     Started server process [12173]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_playwright_headful.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12173]
+WARNING:  WatchFiles detected changes in 'scripts/resolve_rmp_tids_playwright_headful.py'. Reloading...
+INFO:     Started server process [15364]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Started server process [15365]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
