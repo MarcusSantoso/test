@@ -7,6 +7,8 @@ from alembic import context
 
 from dotenv import load_dotenv
 import os
+import sys
+from urllib.parse import urlparse
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -38,6 +40,90 @@ _set_option(
     "POSTGRES_DB",
     default=os.environ.get("POSTGRES_USER", "postgres"),
 )
+
+# If POSTGRES_HOST is present but contains an obvious placeholder value,
+# fail early with a clear message to help users debug deploy envs.
+post_host = os.environ.get("POSTGRES_HOST")
+if post_host:
+    if post_host in {"HOST", "host", "<host>", "<HOST>"}:
+        print(
+            "\nERROR: POSTGRES_HOST appears to be a placeholder.\n"
+            "Set `POSTGRES_HOST` to your database hostname (or use `DATABASE_URL`).\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+# If a single DATABASE_URL is provided (e.g. from Render), prefer it for
+# the SQLAlchemy/alembic connection. This keeps compatibility with both the
+# individual POSTGRES_* vars and a single DATABASE_URL value.
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # Normalize common URL schemes so SQLAlchemy can locate the correct
+    # dialect plugin. Some platforms (Render) provide URLs that start with
+    # `postgres://` which triggers SQLAlchemy to look for
+    # `sqlalchemy.dialects.postgres` (not present). Replace that with the
+    # supported `postgresql://` scheme. If a fully-qualified DBAPI is
+    # provided (eg `postgresql+psycopg2://`) keep it as-is.
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    # configure sqlalchemy.url for alembic
+    config.set_main_option("sqlalchemy.url", db_url)
+
+    # Validate host isn't a placeholder (common mistake when copying examples)
+    parsed = urlparse(db_url)
+    hostname = parsed.hostname
+    placeholders = {"HOST", "host", "<host>", "DB_HOST", "<DB_HOST>", "<HOST>"}
+    if not hostname or hostname in placeholders:
+        print(
+            "\nERROR: DATABASE_URL hostname appears to be a placeholder or is empty.\n"
+            "Please set a real database host in the Render environment variables.\n"
+            "Example: DATABASE_URL='postgres://USER:PASS@hostname:5432/DBNAME'\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+# If POSTGRES_HOST is present but contains an obvious placeholder value,
+# fail early with a clear message to help users debug deploy envs.
+post_host = os.environ.get("POSTGRES_HOST")
+if post_host:
+    if post_host in {"HOST", "host", "<host>", "<HOST>"}:
+        print(
+            "\nERROR: POSTGRES_HOST appears to be a placeholder.\n"
+            "Set `POSTGRES_HOST` to your database hostname (or use `DATABASE_URL`).\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+# If a single DATABASE_URL is provided (e.g. from Render), prefer it for
+# the SQLAlchemy/alembic connection. This keeps compatibility with both the
+# individual POSTGRES_* vars and a single DATABASE_URL value.
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # Normalize common URL schemes so SQLAlchemy can locate the correct
+    # dialect plugin. Some platforms (Render) provide URLs that start with
+    # `postgres://` which triggers SQLAlchemy to look for
+    # `sqlalchemy.dialects.postgres` (not present). Replace that with the
+    # supported `postgresql://` scheme. If a fully-qualified DBAPI is
+    # provided (eg `postgresql+psycopg2://`) keep it as-is.
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    # configure sqlalchemy.url for alembic
+    config.set_main_option("sqlalchemy.url", db_url)
+
+    # Validate host isn't a placeholder (common mistake when copying examples)
+    parsed = urlparse(db_url)
+    hostname = parsed.hostname
+    placeholders = {"HOST", "host", "<host>", "DB_HOST", "<DB_HOST>", "<HOST>"}
+    if not hostname or hostname in placeholders:
+        print(
+            "\nERROR: DATABASE_URL hostname appears to be a placeholder or is empty.\n"
+            "Please set a real database host in the Render environment variables.\n"
+            "Example: DATABASE_URL='postgres://USER:PASS@hostname:5432/DBNAME'\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

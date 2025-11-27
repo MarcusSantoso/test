@@ -48,7 +48,9 @@ class FakeClient:
         if "reddit.com/search.json" in url:
             # Return a JSON with one child
             now_ts = int(datetime.now().timestamp())
-            data = {"data": {"children": [{"data": {"title": "Great lecture by Prof", "selftext": "Very clear", "created_utc": now_ts}}]}}
+            # Include full professor name, department and a course code to satisfy
+            # strict filtering in tests.
+            data = {"data": {"children": [{"data": {"title": "Dr Test Reddit CS CS101 - Great lecture", "selftext": "Very clear CPSC101 Dr Test Reddit CS", "created_utc": now_ts}}]}}
             return FakeResponse(200, text=json.dumps(data), data=data)
 
         if "ratemyprofessors.com/search/teachers" in url:
@@ -83,11 +85,12 @@ def test_scrape_reddit_and_store(monkeypatch):
     # patch httpx.Client to our fake
     monkeypatch.setattr(httpx, "Client", FakeClient)
 
-    added = scrape_professor_by_id(db, prof.id)
+    # use strict filter: require full name + school + course code
+    added = scrape_professor_by_id(db, prof.id, course_code="CS101", require_fullname_and_school_and_course=True)
     assert added >= 1
 
     # calling again should not create duplicates
-    added2 = scrape_professor_by_id(db, prof.id)
+    added2 = scrape_professor_by_id(db, prof.id, course_code="CS101", require_fullname_and_school_and_course=True)
     assert added2 == 0
 
 
