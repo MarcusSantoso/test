@@ -13,21 +13,38 @@ from .schemas import EventCreateSchema
 
 logger = logging.getLogger("uvicorn.error")
 
+DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
+
 
 class RequestEventLogger:
     """
     Helper responsible for emitting request metadata into the event stream.
+    Logs a generic `api.request` event, with method, status, client, and
+    optional latency_ms for performance analytics.
     """
 
-    async def log_request(self, request: Request, response_status: int) -> None:
+    async def log_request(
+        self,
+        request: Request,
+        response_status: int,
+        latency_ms: float | None = None,
+    ) -> None:
         try:
-            await self._write_event(request, response_status)
+            await self._write_event(request, response_status, latency_ms=latency_ms)
         except Exception:
-            logger.exception("Failed to log request event", extra={"path": str(request.url)})
+            logger.exception(
+                "Failed to log request event", extra={"path": str(request.url)}
+            )
 
-    async def _write_event(self, request: Request, response_status: int) -> None:
+    async def _write_event(
+        self,
+        request: Request,
+        response_status: int,
+        latency_ms: float | None = None,
+    ) -> None:
         if not _should_log_request(request):
             return
+
         try:
             redis_client = get_redis()
         except Exception:
@@ -35,17 +52,24 @@ class RequestEventLogger:
             logger.exception("Redis unavailable for request-event logging; skipping")
             return
         repo = EventRepository(redis_client)
-        when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        when = datetime.now(timezone.utc).strftime(DATETIME_FMT)
+
         payload: dict[str, Any] = {
             "method": request.method,
             "client": request.client.host if request.client else None,
-            "status": response_status,
+            "status_code": response_status,
         }
+        if latency_ms is not None:
+            # keep as float; caller already measures in ms
+            payload["latency_ms"] = float(latency_ms)
+
         user = getattr(request.state, "user_id", None)
+
         event = EventCreateSchema(
             when=when,
             source=str(request.url),
-            type=_event_type_for(request),
+            # Use a stable event type for API analytics
+            type="api.request",
             payload=payload,
             user=user,
         )
@@ -85,7 +109,6 @@ def _should_log_request(request: Request) -> bool:
     if any(path.endswith(suffix) for suffix in IGNORED_SUFFIXES):
         return False
     return True
-
 
 def _event_type_for(request: Request) -> str:
     return f"http {request.method.upper()} {request.url.path}"
