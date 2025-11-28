@@ -7,12 +7,12 @@ import time
 
 import httpx
 from urllib.parse import quote
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from src.shared.database import get_db
 
 from src.user_service.models import Review, Professor
-from src.services.semantic_search import enqueue_recompute_professor_embedding
+
 
 USER_AGENT = "user_service_scraper/1.0 (+https://example.com)"
 
@@ -364,9 +364,51 @@ def import_sfu_professors_to_db(
 
 
 def scrape_rmp(prof_name: str, limit: int = 50) -> List[dict]:
-    """Attempt to scrape RateMyProfessors search results and reviews (best-effort)."""
+    """Attempt to scrape RateMyProfessors search results and reviews (best-effort).
 
-    # ... (rest of file unchanged) ...
+    This uses the public search page to find a professor id, then attempts to
+    fetch review snippets from the professor page. It's fragile but works
+    in many cases without authentication.
+    """
+    out: List[dict] = []
+    headers = {"User-Agent": USER_AGENT}
+    search_url = f"https://www.ratemyprofessors.com/search/teachers?query={quote(prof_name)}"
+    try:
+        with httpx.Client(timeout=15.0, headers=headers, follow_redirects=True) as client:
+            r = client.get(search_url)
+            r.raise_for_status()
+            text = r.text
+            # find first professor link containing '/ShowRatings.jsp?tid=' or '/professor/'
+            # Try to locate tid or professor ID via simple heuristics
+            import re
+
+            m = re.search(r"/(ShowRatings|ProfessorRatings)\.jsp\?tid=(\d+)", text)
+            if m:
+                tid = m.group(2)
+                prof_page = client.get(f"https://www.ratemyprofessors.com/ShowRatings.jsp?tid={tid}")
+                prof_page.raise_for_status()
+                page_text = prof_page.text
+                # extract review blocks (simple heuristic for quotes)
+                reviews = re.findall(r"<div class=\"Rating__RatingBody\">(.*?)</div>", page_text, flags=re.S)
+                for rev in reviews[:limit]:
+                    clean = re.sub(r"<[^>]+>", "", rev).strip()
+                    out.append({"text": clean, "timestamp": None, "source": "ratemyprofessors", "rating": None})
+            else:
+                # try new path style: look for /professor/<id>
+                m2 = re.search(r"/professor/(\d+)", text)
+                if m2:
+                    pid = m2.group(1)
+                    prof_page = client.get(f"https://www.ratemyprofessors.com/professor/{pid}")
+                    prof_page.raise_for_status()
+                    page_text = prof_page.text
+                    import re
+                    reviews = re.findall(r"<p class=\"Comments__Text\">(.*?)</p>", page_text, flags=re.S)
+                    for rev in reviews[:limit]:
+                        clean = re.sub(r"<[^>]+>", "", rev).strip()
+                        out.append({"text": clean, "timestamp": None, "source": "ratemyprofessors", "rating": None})
+    except Exception:
+        return out
+    return out
 
 
 def _graphql_request(query: str, variables: dict | None = None) -> dict | None:
@@ -381,9 +423,123 @@ def _graphql_request(query: str, variables: dict | None = None) -> dict | None:
 
 
 def scrape_rmp_graphql(prof_name: str, school_name: str | None = None, limit: int = 200) -> List[dict]:
-    """Search RateMyProfessors via GraphQL for a teacher matching `prof_name` and optional `school_name`."""
+    """Search RateMyProfessors via GraphQL for a teacher matching `prof_name` and optional `school_name`.
 
-    # ... (rest of file unchanged) ...
+    Returns list of normalized review dicts: {text, timestamp(datetime|None), source='ratemyprofessors', rating}
+    """
+    out: List[dict] = []
+
+    # 1) search teachers
+    search_q = '''
+query($text:String!,$first:Int){
+  newSearch {
+    teachers(query:{text:$text}, first:$first) {
+      edges { node { id firstName lastName legacyId department numRatings avgRatingRounded school { id name } courseCodes { courseName } } }
+    }
+  }
+}
+'''
+    resp = _graphql_request(search_q, {"text": prof_name, "first": 50})
+    if not resp or "data" not in resp:
+        return out
+
+    edges = resp.get("data", {}).get("newSearch", {}).get("teachers", {}).get("edges") or []
+    # find best matching teacher node
+    prof_name_norm = (prof_name or "").strip().lower()
+    candidate = None
+    for e in edges:
+        node = e.get("node") or {}
+        fn = (node.get("firstName") or "").strip().lower()
+        ln = (node.get("lastName") or "").strip().lower()
+        full = f"{fn} {ln}".strip()
+        school = (node.get("school") or {}).get("name") or ""
+        school_l = school.lower()
+        # match by full name presence
+        if prof_name_norm == full or prof_name_norm in full:
+            if school_name:
+                if school_name.lower() in school_l:
+                    candidate = node
+                    break
+            else:
+                candidate = node
+                break
+
+    if not candidate and edges:
+        # fallback: pick first node whose full name contains the prof_name tokens
+        for e in edges:
+            node = e.get("node") or {}
+            fn = (node.get("firstName") or "").strip().lower()
+            ln = (node.get("lastName") or "").strip().lower()
+            full = f"{fn} {ln}".strip()
+            if all(p in full for p in prof_name_norm.split()):
+                candidate = node
+                break
+
+    if not candidate:
+        return out
+
+    teacher_id = candidate.get("id")
+    if not teacher_id:
+        return out
+
+    # 2) fetch ratings for the teacher node using cursor-based pagination
+    node_q = '''
+query($id:ID!,$first:Int,$after:String){
+  node(id:$id){
+    ... on Teacher {
+      id firstName lastName legacyId school { id name } numRatings
+      ratings(first:$first, after:$after) { edges { node { legacyId date comment qualityRating grade wouldTakeAgain } } pageInfo { endCursor hasNextPage } }
+    }
+  }
+}
+'''
+
+    fetched = 0
+    after = None
+    page_size = 50 if limit > 50 else limit
+
+    while fetched < limit:
+        vars2 = {"id": teacher_id, "first": page_size}
+        if after:
+            vars2["after"] = after
+
+        resp2 = _graphql_request(node_q, vars2)
+        if not resp2 or "data" not in resp2:
+            break
+
+        ratings_obj = resp2.get("data", {}).get("node", {}).get("ratings") or {}
+        rating_edges = ratings_obj.get("edges") or []
+
+        for e in rating_edges:
+            if fetched >= limit:
+                break
+            n = e.get("node") or {}
+            text = n.get("comment") or ""
+            date = n.get("date")
+            ts = None
+            if date:
+                try:
+                    from datetime import datetime
+
+                    try:
+                        ts = datetime.strptime(date, "%Y-%m-%d %H:%M:%S +0000 UTC")
+                    except Exception:
+                        try:
+                            ts = datetime.fromisoformat(date)
+                        except Exception:
+                            ts = None
+                except Exception:
+                    ts = None
+
+            out.append({"text": (text or "").strip(), "timestamp": ts, "source": "ratemyprofessors", "rating": n.get("qualityRating")})
+            fetched += 1
+
+        page_info = ratings_obj.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        after = page_info.get("endCursor")
+
+    return out
 
 
 def scrape_professor_by_id(db: Session, prof_id: int, *, course_code: str | None = None, require_fullname_and_school_and_course: bool = False, strict_reddit: bool = True, max_reddit: int | None = None) -> int:
@@ -445,8 +601,6 @@ def scrape_professor_by_id(db: Session, prof_id: int, *, course_code: str | None
                 pass
             else:
                 # require partial name match (first or last name token) AND either school or course mention
-                import re
-
                 name_tokens = [(t or "").lower() for t in (prof.name or "").split() if t]
                 if not name_tokens:
                     continue
@@ -455,11 +609,14 @@ def scrape_professor_by_id(db: Session, prof_id: int, *, course_code: str | None
                     continue
 
                 # require mention of SFU/CMPT or an explicit course code (e.g., 'CMPT 120') or provided course_code
+                import re
+
                 has_school = "sfu" in txt or "cmpt" in txt
                 has_course_pattern = re.search(r"\bcmpt\s?\d{2,3}\b", txt) is not None
                 has_provided_course = course_code and course_code.lower() in txt
 
                 if not (has_school or has_course_pattern or has_provided_course):
+                    # allow if subreddit whitelist matched earlier (handled above). Otherwise reject
                     continue
 
             # enforce reddit cap (count existing + inserted in this run)
@@ -481,13 +638,5 @@ def scrape_professor_by_id(db: Session, prof_id: int, *, course_code: str | None
         except Exception:
             db.rollback()
             continue
-
-    # If we added any reviews, enqueue an embedding recompute for this professor.
-    if added > 0:
-        try:
-            enqueue_recompute_professor_embedding(prof_id)
-        except Exception:
-            # best-effort enqueue: don't let enqueue errors affect scraper result
-            pass
 
     return added
