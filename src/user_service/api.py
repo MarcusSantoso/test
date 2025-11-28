@@ -27,7 +27,11 @@ from src.services.ai_summarization_engine import (
     MissingAPIKey,
     MissingOpenAIClient,
 )
-from src.services.summary_service import SummaryService
+from src.services.summary_service import (
+    SummaryService,
+    AUTO_REFRESH_WINDOW,
+    AUTO_REFRESH_REVIEW_DELTA,
+)
 from .models.user import (
     UserRepository,
     User,
@@ -138,10 +142,17 @@ class ProfessorSummaryPayload(BaseModel):
     neutral: List[str]
     text_summary: Optional[str] = None
     updated_at: datetime
+    auto_refresh_note: Optional[str] = None
 
 
 class ProfessorSummaryResponse(BaseModel):
     summary: ProfessorSummaryPayload
+
+
+_AUTO_REFRESH_NOTE = (
+    f"AI summary auto-refreshes every {AUTO_REFRESH_WINDOW.days} days or after "
+    f"{AUTO_REFRESH_REVIEW_DELTA} new reviews, whichever comes first."
+)
 
 
 def _coerce_summary_list(value: object) -> List[str]:
@@ -204,6 +215,7 @@ def _serialize_professor_summary(summary: AISummary) -> ProfessorSummaryPayload:
         neutral=neutral,
         text_summary=text_summary or None,
         updated_at=updated_at,
+        auto_refresh_note=_AUTO_REFRESH_NOTE,
     )
 
 
