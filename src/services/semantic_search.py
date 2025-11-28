@@ -229,3 +229,135 @@ def enqueue_recompute_professor_embedding(professor_id: int) -> None:
 
     t = threading.Thread(target=_job, daemon=True)
     t.start()
+# === Patch: enforce safe max length for embedding inputs ===
+# Some professors can accumulate very long aggregated review text
+# which may exceed the model's 8192-token context limit.
+# We re-define get_openai_embedding with a simple char-based truncation.
+from typing import List
+import os
+
+try:
+    from openai import OpenAI  # new SDK
+except ImportError:  # fallback
+    import openai as OpenAI  # type: ignore[assignment]
+
+
+def get_openai_embedding(text_input: str) -> List[float]:
+    """
+    Get an embedding for the given text, with a safety truncation so that
+    we don't exceed the model's maximum context length.
+
+    This definition intentionally overrides any earlier get_openai_embedding
+    in this module.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY environment variable is required for semantic search")
+
+    # Approximate: ~4 characters per token. To stay safely under 8192 tokens,
+    # we cap around 28000 characters.
+    max_chars = 28000
+    if len(text_input) > max_chars:
+        text_input = text_input[:max_chars]
+
+    # Use new-style OpenAI client if available, otherwise fall back.
+    try:
+        client = OpenAI(api_key=api_key)  # type: ignore[call-arg]
+        resp = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=text_input,
+        )
+        return resp.data[0].embedding  # type: ignore[index]
+    except TypeError:
+        # Fallback for older "openai" import style
+        resp = OpenAI.Embedding.create(  # type: ignore[attr-defined]
+            model="text-embedding-3-small",
+            input=text_input,
+            api_key=api_key,
+        )
+        return resp["data"][0]["embedding"]  # type: ignore[index]
+
+
+# === Patch 2: chunked embedding to stay under context limit ===
+# Some professors have very long aggregated review text. To avoid exceeding
+# the model context window, we split the text into chunks and average
+# the embeddings for each chunk.
+from typing import List
+import os
+
+try:
+    from openai import OpenAI as _OpenAIClient  # new SDK
+except ImportError:  # fallback
+    import openai as _OpenAIClient  # type: ignore[assignment]
+
+
+def get_openai_embedding(text_input: str) -> List[float]:
+    """
+    Get an embedding for the given text, safely handling very long inputs
+    by splitting into smaller chunks and averaging the embeddings.
+
+    This definition intentionally overrides any earlier get_openai_embedding
+    in this module.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY environment variable is required for semantic search")
+
+    # Helper to embed a single (reasonably short) string
+    def _embed_once(chunk: str) -> List[float]:
+        # We keep each chunk quite short in characters so we stay well under
+        # the 8192-token limit even in worst-case tokenization.
+        if not chunk:
+            return []
+
+        try:
+            client = _OpenAIClient(api_key=api_key)  # type: ignore[call-arg]
+            resp = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=chunk,
+            )
+            return resp.data[0].embedding  # type: ignore[index]
+        except TypeError:
+            # Fallback for older "openai" import style
+            resp = _OpenAIClient.Embedding.create(  # type: ignore[attr-defined]
+                model="text-embedding-3-small",
+                input=chunk,
+                api_key=api_key,
+            )
+            return resp["data"][0]["embedding"]  # type: ignore[index]
+
+    # Split very long text into small chunks (by characters).
+    # 4000 chars per chunk is very conservative vs 8192 tokens.
+    max_chunk_chars = 4000
+    text = text_input or ""
+    chunks: list[str] = [
+        text[i : i + max_chunk_chars]
+        for i in range(0, len(text), max_chunk_chars)
+    ] or [""]
+
+    # Compute embeddings for each chunk and average them
+    embeddings: list[List[float]] = []
+    for ch in chunks:
+        vec = _embed_once(ch)
+        if vec:
+            embeddings.append(vec)
+
+    if not embeddings:
+        # Should be rare; fall back to a single empty embedding call
+        return _embed_once("")
+
+    # Average element-wise
+    dim = len(embeddings[0])
+    summed = [0.0] * dim
+    for vec in embeddings:
+        # If any chunk produced a vector of different length, skip it
+        if len(vec) != dim:
+            continue
+        for i in range(dim):
+            summed[i] += vec[i]
+
+    count = len(embeddings)
+    if count == 0:
+        return _embed_once("")
+    return [v / count for v in summed]
+
