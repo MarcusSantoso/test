@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +14,12 @@ from src.user_service.api import app, _resolve_ai_engine
 from src.user_service.models.user import Base
 from src.user_service.models import Review, AISummary
 from src.shared.database import get_db
+from src.services.summary_service import AUTO_REFRESH_WINDOW, AUTO_REFRESH_REVIEW_DELTA
+
+AUTO_REFRESH_NOTE = (
+    f"AI summary auto-refreshes every {AUTO_REFRESH_WINDOW.days} days or after "
+    f"{AUTO_REFRESH_REVIEW_DELTA} new reviews, whichever comes first."
+)
 
 
 @pytest.fixture()
@@ -52,7 +59,14 @@ def test_create_and_get_professor_with_relations(temp_db_client):
     db = TestingSessionLocal()
     try:
         review = Review(prof_id=prof_id, text="Excellent", source="rmp", rating=5)
-        summary = AISummary(prof_id=prof_id, pros=["Clear lectures"], cons=[], neutral=[], updated_at=None)
+        summary = AISummary(
+            prof_id=prof_id,
+            pros=["Clear lectures"],
+            cons=[],
+            neutral=[],
+            updated_at=datetime.now(timezone.utc),
+            review_count_snapshot=1,
+        )
         db.add(review)
         db.add(summary)
         db.commit()
@@ -68,6 +82,7 @@ def test_create_and_get_professor_with_relations(temp_db_client):
     assert body["reviews"][0]["text"] == "Excellent"
     assert body.get("ai_summary") is not None
     assert body["ai_summary"]["pros"] == ["Clear lectures"]
+    assert body["ai_summary"]["auto_refresh_note"] == AUTO_REFRESH_NOTE
 
 
 class DummyStructuredEngine:
@@ -112,6 +127,7 @@ def test_professor_summary_refresh_and_auto_refresh(temp_db_client):
     assert resp_summary.status_code == 200
     payload = resp_summary.json()["summary"]
     assert payload["pros"] == ["pro-1"]
+    assert payload["auto_refresh_note"] == AUTO_REFRESH_NOTE
     assert dummy.calls == 1
 
     db = TestingSessionLocal()
@@ -140,6 +156,52 @@ def test_professor_summary_refresh_and_auto_refresh(temp_db_client):
     force_resp = client.post(f"/prof/{prof_id}/summary/refresh")
     assert force_resp.status_code == 200
     assert dummy.calls == 3
+
+    app.dependency_overrides.pop(_resolve_ai_engine, None)
+
+
+def test_professor_detail_uses_existing_summary_only(temp_db_client):
+    client, TestingSessionLocal = temp_db_client
+    dummy = DummyStructuredEngine()
+    app.dependency_overrides[_resolve_ai_engine] = _override_engine(dummy)
+
+    resp = client.post("/professors/", json={"name": "Dr Detail"})
+    prof_id = resp.json()["professor"]["id"]
+
+    db = TestingSessionLocal()
+    try:
+        for idx in range(3):
+            db.add(Review(prof_id=prof_id, text=f"Detail {idx}", rating=5 - idx, source="rmp"))
+        db.commit()
+    finally:
+        db.close()
+
+    # Manually request a summary so it exists in the DB.
+    resp_summary = client.get(f"/prof/{prof_id}/summary")
+    assert resp_summary.status_code == 200
+    assert dummy.calls == 1
+
+    # Fetch the professor detail; it should reuse the stored summary without
+    # making a new AI call.
+    resp_detail = client.get(f"/professors/{prof_id}")
+    assert resp_detail.status_code == 200
+    body = resp_detail.json()["professor"]
+    assert body["ai_summary"]["pros"] == ["pro-1"]
+    assert body["ai_summary"]["auto_refresh_note"] == AUTO_REFRESH_NOTE
+    assert dummy.calls == 1
+
+    db = TestingSessionLocal()
+    try:
+        for idx in range(3):
+            db.add(Review(prof_id=prof_id, text=f"Later {idx}", rating=3, source="forum"))
+        db.commit()
+    finally:
+        db.close()
+
+    resp_detail_2 = client.get(f"/professors/{prof_id}")
+    assert resp_detail_2.status_code == 200
+    # Even though there are >=3 new reviews, the AI was not invoked automatically.
+    assert dummy.calls == 1
 
     app.dependency_overrides.pop(_resolve_ai_engine, None)
 

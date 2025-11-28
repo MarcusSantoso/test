@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import ast
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Sequence
 
@@ -35,13 +36,21 @@ class SummaryService:
     def __init__(
         self,
         session: Session,
-        engine: AISummarizationEngine,
+        engine: AISummarizationEngine | Callable[[], AISummarizationEngine],
         *,
         review_limit: int | None = None,
         max_prompt_chars: int = MAX_PROMPT_CHARS,
     ) -> None:
         self.session = session
-        self.engine = engine
+        self._engine_instance: AISummarizationEngine | None = None
+        self._engine_factory: Callable[[], AISummarizationEngine] | None = None
+        if callable(engine):
+            self._engine_factory = engine
+        else:
+            self._engine_instance = engine
+        # Preserve backwards compatibility for any callers that reference
+        # `self.engine` directly by mirroring the resolved instance.
+        self.engine: AISummarizationEngine | None = self._engine_instance
         self.review_limit = review_limit
         self.max_prompt_chars = max_prompt_chars
 
@@ -139,7 +148,8 @@ class SummaryService:
         if not formatted:
             raise ValueError("No usable review text to summarize")
 
-        summary_text, _raw = await self.engine.summarize_with_raw(
+        engine = self._get_engine()
+        summary_text, _raw = await engine.summarize_with_raw(
             formatted,
             options=SummarizationOptions(
                 instructions=SUMMARY_PROMPT,
@@ -315,3 +325,11 @@ class SummaryService:
                         out.append(cleaned)
             return out
         return []
+
+    def _get_engine(self) -> AISummarizationEngine:
+        if self._engine_instance is None:
+            if not self._engine_factory:
+                raise RuntimeError("Summarization engine is not configured")
+            self._engine_instance = self._engine_factory()
+            self.engine = self._engine_instance
+        return self._engine_instance
