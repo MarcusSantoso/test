@@ -1,4 +1,4 @@
-﻿from typing import List, Optional
+from typing import List, Optional
 from fastapi import FastAPI, Depends, Response, HTTPException, Request, status, UploadFile, File, Query
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
@@ -6,15 +6,8 @@ from src.shared.jwt_utils import issue_jwt, verify_jwt, JWTError
 from sqlalchemy.exc import IntegrityError
 from fastapi.staticfiles import StaticFiles
 import logging
-logger = logging.getLogger(__name__)
 import hashlib
 import re
-from src.services.semantic_search import (
-    search_professors,
-    recompute_professor_embedding,
-    precompute_and_store_all_embeddings,
-)
-
 
 from src.admin.main import ui
 from src.event_service.router import router as event_router
@@ -27,11 +20,7 @@ from src.services.ai_summarization_engine import (
     MissingAPIKey,
     MissingOpenAIClient,
 )
-from src.services.summary_service import (
-    SummaryService,
-    AUTO_REFRESH_WINDOW,
-    AUTO_REFRESH_REVIEW_DELTA,
-)
+from src.services.summary_service import SummaryService
 from .models.user import (
     UserRepository,
     User,
@@ -59,7 +48,7 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 try:
-    ui.run_with(app, mount_path="/admin", favicon="?뫀", title="User Admin")
+    ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
 except Exception:
     # UI mount is optional in tests; ignore failures silently.
     pass
@@ -142,17 +131,10 @@ class ProfessorSummaryPayload(BaseModel):
     neutral: List[str]
     text_summary: Optional[str] = None
     updated_at: datetime
-    auto_refresh_note: Optional[str] = None
 
 
 class ProfessorSummaryResponse(BaseModel):
     summary: ProfessorSummaryPayload
-
-
-_AUTO_REFRESH_NOTE = (
-    f"AI summary auto-refreshes every {AUTO_REFRESH_WINDOW.days} days or after "
-    f"{AUTO_REFRESH_REVIEW_DELTA} new reviews, whichever comes first."
-)
 
 
 def _coerce_summary_list(value: object) -> List[str]:
@@ -215,7 +197,6 @@ def _serialize_professor_summary(summary: AISummary) -> ProfessorSummaryPayload:
         neutral=neutral,
         text_summary=text_summary or None,
         updated_at=updated_at,
-        auto_refresh_note=_AUTO_REFRESH_NOTE,
     )
 
 
@@ -1286,12 +1267,7 @@ async def refresh_professor_summary_endpoint(
 
 @app.post("/scrape/{prof_id}")
 async def scrape_professor_endpoint(prof_id: int, db: Session = Depends(get_db)):
-    """Trigger scraping for a professor ID and refresh their semantic embedding.
-
-    Returns:
-      - success: bool
-      - added: number of reviews added by the scrape
-    """
+    """Trigger scraping for a professor ID. Returns number of reviews added."""
     try:
         added = scrape_professor_by_id(db, prof_id)
     except LookupError:
@@ -1299,293 +1275,4 @@ async def scrape_professor_endpoint(prof_id: int, db: Session = Depends(get_db))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Scrape failed: {str(exc)}")
 
-    # If we added (or even touched) reviews, refresh the professor's embedding
-    try:
-        recompute_professor_embedding(db, prof_id)
-    except Exception as exc:
-        # Don't break the endpoint just because embedding failed;
-        # log it so we can debug if needed.
-        logger.exception(
-            "Failed to recompute embedding for professor %s after scrape: %s",
-            prof_id,
-            exc,
-        )
-
     return {"success": True, "added": added}
-
-@app.get("/search")
-def search_endpoint(
-    q: str = Query(..., min_length=1),
-    department: Optional[str] = Query(None),
-    course_level: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-):
-    """
-    Semantic search for professors.
-    Query params:
-      - q: required natural language query
-      - department: optional department filter
-      - course_level: optional (ignored unless you add the column)
-    """
-    results = search_professors(db, query=q, threshold=0.7, limit=20, department=department, course_level=course_level)
-    return {"results": results}
-
-
-@app.post("/debug/precompute_embeddings")
-def debug_precompute_embeddings(db: Session = Depends(get_db)):
-    """
-    One-off endpoint to compute & store embeddings for all professors
-    that have reviews but no embedding yet. Call this once before
-    testing /search.
-    """
-    try:
-        precompute_and_store_all_embeddings(db)
-        return {"detail": "ok"}
-    except Exception as exc:
-        logger.exception("precompute_and_store_all_embeddings failed")
-        raise HTTPException(status_code=500, detail=str(exc))
-
-from typing import Optional
-
-from fastapi import Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
-from src.services.recommendation_service import (
-    PreferenceWeights,
-    recommend_professors_for_user,
-)
-
-
-class RecommendationRequest(BaseModel):
-    user_id: int
-    clarity_weight: float = 1.0
-    workload_weight: float = 1.0
-    grading_weight: float = 1.0
-    limit: int = 5
-
-
-@app.post("/recommend")
-def recommend_endpoint(
-    payload: RecommendationRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Return personalized professor recommendations for an authenticated user.
-
-    For this assignment endpoint, the caller must provide user_id explicitly.
-    In a production system this would be taken from the authenticated session.
-    """
-    weights = PreferenceWeights(
-        clarity_weight=payload.clarity_weight,
-        workload_weight=payload.workload_weight,
-        grading_weight=payload.grading_weight,
-    )
-
-    recommendations = recommend_professors_for_user(
-        db=db,
-        user_id=payload.user_id,
-        weights=weights,
-        limit=payload.limit,
-    )
-
-    return {
-        "results": recommendations
-    }
-
-# === Debug endpoint: seed demo professors & reviews for recommendation/search ===
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from src.shared.database import get_db
-from src.user_service.models import Professor, Review
-from src.services.semantic_search import recompute_professor_embedding
-
-
-@app.post("/debug/seed_recommendation_demo")
-def debug_seed_recommendation_demo(db: Session = Depends(get_db)):
-    """
-    Seed a few demo professors and reviews so we can easily test
-    semantic search (/search) and personalized recommendations (/recommend).
-    This endpoint is for local debugging only.
-    """
-
-    demo_defs = [
-        ("Demo Easy Workload Prof", "CMPT"),
-        ("Demo Harsh Grader Prof", "CMPT"),
-        ("Demo Clear but Heavy Prof", "CMPT"),
-    ]
-
-    created_profs: list[Professor] = []
-
-    # Ensure professors exist (idempotent by name)
-    for name, dept in demo_defs:
-        prof = db.query(Professor).filter(Professor.name == name).first()
-        if not prof:
-            prof = Professor(name=name, department=dept)
-            db.add(prof)
-            db.flush()  # assign id
-        created_profs.append(prof)
-
-    prof_ids = [p.id for p in created_profs]
-
-    # Clear old demo reviews for these profs
-    (
-        db.query(Review)
-        .filter(Review.prof_id.in_(prof_ids), Review.source == "demo")
-        .delete(synchronize_session=False)
-    )
-
-    def add_review(prof: Professor, text: str, rating: int):
-        db.add(
-            Review(
-                prof_id=prof.id,
-                text=text,
-                rating=rating,
-                source="demo",
-            )
-        )
-
-    easy_prof, harsh_prof, heavy_prof = created_profs
-
-    # Easy workload, generous grading
-    add_review(
-        easy_prof,
-        "Super easy grader, very light workload, assignments are simple and chill.",
-        5,
-    )
-    add_review(
-        easy_prof,
-        "Good for beginners, barely any homework and very flexible deadlines.",
-        5,
-    )
-
-    # Harsh grading, workload okay
-    add_review(
-        harsh_prof,
-        "Workload is fine, but the grading is extremely harsh and very strict.",
-        2,
-    )
-    add_review(
-        harsh_prof,
-        "Tests are brutal, tiny mistakes lose a lot of marks. Not recommended if you care about GPA.",
-        2,
-    )
-
-    # Clear explanations, but heavy workload
-    add_review(
-        heavy_prof,
-        "Explains concepts very clearly but the workload is extremely heavy with weekly projects.",
-        3,
-    )
-    add_review(
-        heavy_prof,
-        "Clarity is great, slides are clear, but assignments take a lot of time every week.",
-        4,
-    )
-
-    db.commit()
-
-    # Recompute embeddings for these demo professors so /search picks them up
-    try:
-        for p in created_profs:
-            recompute_professor_embedding(db, p.id)
-    except Exception:
-        # Best-effort; even if embedding fails, recommendations will still work
-        pass
-
-    return {
-        "detail": "seeded demo professors and reviews",
-        "professor_ids": prof_ids,
-    }
-
-
-# === Debug endpoints for semantic search / recommendation ===
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from src.shared.database import get_db
-from src.user_service.models import Professor
-from src.services.semantic_search import recompute_professor_embedding
-
-
-@app.get("/debug/list_embedded_profs")
-def debug_list_embedded_profs(limit: int = 50, db: Session = Depends(get_db)):
-    """
-    List professors that currently have a non-null embedding.
-    Useful to see which ones participate in /search.
-    """
-    profs = (
-        db.query(Professor)
-        .filter(Professor.embedding.isnot(None))
-        .order_by(Professor.id.asc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "department": p.department,
-        }
-        for p in profs
-    ]
-
-
-@app.post("/debug/recompute_demo_embeddings")
-def debug_recompute_demo_embeddings(db: Session = Depends(get_db)):
-    """
-    Recompute embeddings just for the three demo professors created by
-    /debug/seed_recommendation_demo.
-    """
-    names = [
-        "Demo Easy Workload Prof",
-        "Demo Harsh Grader Prof",
-        "Demo Clear but Heavy Prof",
-    ]
-    updated = []
-    errors = {}
-
-    for name in names:
-        prof = db.query(Professor).filter(Professor.name == name).first()
-        if not prof:
-            continue
-        try:
-            recompute_professor_embedding(db, prof.id)
-            updated.append(prof.id)
-        except Exception as exc:  # best-effort: collect errors but continue
-            errors[prof.id] = str(exc)
-
-    return {"updated_ids": updated, "errors": errors}
-
-
-# === Debug: simple list of professors with non-null embeddings ===
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from src.shared.database import get_db
-from src.user_service.models import Professor
-
-
-@app.get("/debug/list_embedded_profs_simple")
-def debug_list_embedded_profs_simple(limit: int = 50, db: Session = Depends(get_db)):
-    """
-    Simpler version: list professors that currently have a non-null embedding.
-    This avoids using .isnot() etc. and should be compatible with our SQLAlchemy.
-    """
-    profs = (
-        db.query(Professor)
-        .filter(Professor.embedding != None)  # noqa: E711
-        .order_by(Professor.id.asc())
-        .limit(limit)
-        .all()
-    )
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "department": p.department,
-        }
-        for p in profs
-    ]
-

@@ -19,6 +19,7 @@ def get_db():
     """
     global engine, SessionLocal
 
+
     if not engine:
         # If a full DATABASE_URL is provided, prefer it (12factor style).
         database_url = os.environ.get("DATABASE_URL")
@@ -34,6 +35,9 @@ def get_db():
                 with engine.connect() as _conn:
                     pass
                 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+                print("\n>>>> DATABASE URL IN USE:", engine.url, "\n")
+
             except Exception as exc:
                 logging.warning("DATABASE_URL provided but connection failed (%s). Falling back to POSTGRES_*/localhost. Error: %s", database_url, exc)
                 # clear engine/session so we build from components below
@@ -68,8 +72,18 @@ def get_db():
 
             # Build final URL and create engine
             DATABASE_URL = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{db_name}"
+
             engine = create_engine(DATABASE_URL)
             SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+            print("\n\n>>>> USING DATABASE:", DATABASE_URL, "\n\n")
+
+
+
+
+
+
+
+
 
     db = SessionLocal()
     try:
