@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Search & Recommendations</title>
+    <link rel="stylesheet" href="/static/styles.css?v=2">
+    <style>
+        .search-container { max-width: 900px; }
+        
+        .search-modes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .mode-card {
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+        
+        .mode-card:hover {
+            border-color: #e63946;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(230, 57, 70, 0.15);
+        }
+        
+        .mode-card.active {
+            border-color: #e63946;
+            background: #fff5f5;
+        }
+        
+        .mode-card h3 {
+            margin-bottom: 8px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .mode-card p {
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+        
+        .search-section, .recommend-section {
+            display: none;
+        }
+        
+        .search-section.active, .recommend-section.active {
+            display: block;
+        }
+        
+        .weight-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .weight-control {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .weight-control label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .weight-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #e0e0e0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .weight-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #e63946;
+            cursor: pointer;
+        }
+        
+        .weight-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #e63946;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .weight-value {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: 600;
+            color: #e63946;
+        }
+        
+        .results-grid {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .result-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #e63946;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .result-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            gap: 15px;
+        }
+        
+        .result-info h4 {
+            margin-bottom: 4px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .result-info .dept {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .result-score {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        
+        .score-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #e63946 0%, #c1121f 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .score-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        .result-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .breakdown-item {
+            font-size: 13px;
+        }
+        
+        .breakdown-item .label {
+            color: #888;
+            font-weight: 500;
+        }
+        
+        .breakdown-item .value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            font-style: italic;
+        }
+        
+        .login-prompt {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .login-prompt p {
+            margin-bottom: 15px;
+            color: #856404;
+        }
+        
+        .filters-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .filters-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .filter-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .filter-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .save-preferences {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .save-preferences:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .preferences-saved {
+            color: #28a745;
+            font-size: 14px;
+            margin-left: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .preferences-saved.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container search-container">
+        <a href="/static/index.html" class="back-link">← Back to Home</a>
+        
+        <h1>Smart Search & Recommendations</h1>
+        
+        <!-- Mode Selection -->
+        <div class="search-modes">
+            <div class="mode-card active" data-mode="search">
+                <h3>Semantic Search</h3>
+                <p>Search using natural language to find professors matching your criteria</p>
+            </div>
+            <div class="mode-card" data-mode="recommend">
+                <h3>Personalized Recommendations</h3>
+                <p>Get AI-powered recommendations based on your preferences</p>
+            </div>
+        </div>
+        
+        <!-- Semantic Search Section -->
+        <div class="search-section active">
+            <div class="form-group">
+                <label for="searchQuery">Search Query</label>
+                <input type="text" 
+                       id="searchQuery" 
+                       placeholder="e.g., 'easy grader with light workload' or 'clear explanations but challenging'"
+                       style="width: 100%;">
+            </div>
+            
+            <div class="filters-section">
+                <h4 style="margin-bottom: 15px;">Filters (optional)</h4>
+                <div class="filters-row">
+                    <div class="filter-group">
+                        <label for="searchDept">Department</label>
+                        <select id="searchDept">
+                            <option value="">All Departments</option>
+                            <option value="CMPT">Computer Science (CMPT)</option>
+                            <option value="MATH">Mathematics (MATH)</option>
+                            <option value="STAT">Statistics (STAT)</option>
+                            <option value="ENSC">Engineering (ENSC)</option>
+                            <option value="BIO">Biology (BIO)</option>
+                            <option value="PSYC">Psychology (PSYC)</option>
+                            <option value="ECON">Economics (ECON)</option>
+                            <option value="BUS">Business (BUS)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="searchBtn" class="btn btn-primary" style="width: 100%;">
+                Search Professors
+            </button>
+            
+            <div id="searchResults" class="results-grid"></div>
+            <div id="searchError" class="error-message"></div>
+            <div id="searchLoading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Searching...</p>
+            </div>
+        </div>
+        
+        <!-- Recommendations Section -->
+        <div class="recommend-section">
+            <div id="loginPrompt" class="login-prompt hidden">
+                <p>Please log in to use personalized recommendations</p>
+                <a href="/static/auth.html" class="btn btn-primary">Log In</a>
+            </div>
+            
+            <div id="recommendContent" class="hidden">
+                <h3>Adjust Your Preferences</h3>
+                <p style="color: #666; margin-bottom: 20px;">
+                    Customize the weight of each factor to get personalized recommendations
+                </p>
+                
+                <div class="weight-controls">
+                    <div class="weight-control">
+                        <label for="clarityWeight">
+                            Clarity & Organization
+                            <span class="weight-value" id="clarityValue">1.0</span>
+                        </label>
+                        <input type="range" 
+                               id="clarityWeight" 
+                               class="weight-slider" 
+                               min="0" 
+                               max="3" 
+                               step="0.1" 
+                               value="1.0">
+                    </div>
+                    
+                    <div class="weight-control">
+                        <label for="workloadWeight">
+                            Light Workload
+                            <span class="weight-value" id="workloadValue">1.0</span>
+                        </label>
+                        <input type="range" 
+                               id="workloadWeight" 
+                               class="weight-slider" 
+                               min="0" 
+                               max="3" 
+                               step="0.1" 
+                               value="1.0">
+                    </div>
+                    
+                    <div class="weight-control">
+                        <label for="gradingWeight">
+                            Fair Grading
+                            <span class="weight-value" id="gradingValue">1.0</span>
+                        </label>
+                        <input type="range" 
+                               id="gradingWeight" 
+                               class="weight-slider" 
+                               min="0" 
+                               max="3" 
+                               step="0.1" 
+                               value="1.0">
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button id="recommendBtn" class="btn btn-primary" style="flex: 1;">
+                        Get Recommendations
+                    </button>
+                    <span id="prefsSaved" class="preferences-saved">✓ Saved!</span>
+                </div>
+                
+                <div id="recommendResults" class="results-grid"></div>
+                <div id="recommendError" class="error-message"></div>
+                <div id="recommendLoading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Generating recommendations...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/app.js"></script>
+    <script src="/static/search.js"></script>
+</body>
+</html>
