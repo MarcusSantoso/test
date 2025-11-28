@@ -1,4 +1,4 @@
-﻿from typing import List, Optional
+from typing import List, Optional
 from fastapi import FastAPI, Depends, Response, HTTPException, Request, status, UploadFile, File, Query
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
@@ -6,15 +6,8 @@ from src.shared.jwt_utils import issue_jwt, verify_jwt, JWTError
 from sqlalchemy.exc import IntegrityError
 from fastapi.staticfiles import StaticFiles
 import logging
-logger = logging.getLogger(__name__)
 import hashlib
 import re
-from src.services.semantic_search import (
-    search_professors,
-    recompute_professor_embedding,
-    precompute_and_store_all_embeddings,
-)
-
 
 from src.admin.main import ui
 from src.event_service.router import router as event_router
@@ -55,7 +48,7 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 try:
-    ui.run_with(app, mount_path="/admin", favicon="?뫀", title="User Admin")
+    ui.run_with(app, mount_path="/admin", favicon="👤", title="User Admin")
 except Exception:
     # UI mount is optional in tests; ignore failures silently.
     pass
@@ -1274,12 +1267,7 @@ async def refresh_professor_summary_endpoint(
 
 @app.post("/scrape/{prof_id}")
 async def scrape_professor_endpoint(prof_id: int, db: Session = Depends(get_db)):
-    """Trigger scraping for a professor ID and refresh their semantic embedding.
-
-    Returns:
-      - success: bool
-      - added: number of reviews added by the scrape
-    """
+    """Trigger scraping for a professor ID. Returns number of reviews added."""
     try:
         added = scrape_professor_by_id(db, prof_id)
     except LookupError:
@@ -1287,48 +1275,4 @@ async def scrape_professor_endpoint(prof_id: int, db: Session = Depends(get_db))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Scrape failed: {str(exc)}")
 
-    # If we added (or even touched) reviews, refresh the professor's embedding
-    try:
-        recompute_professor_embedding(db, prof_id)
-    except Exception as exc:
-        # Don't break the endpoint just because embedding failed;
-        # log it so we can debug if needed.
-        logger.exception(
-            "Failed to recompute embedding for professor %s after scrape: %s",
-            prof_id,
-            exc,
-        )
-
     return {"success": True, "added": added}
-
-@app.get("/search")
-def search_endpoint(
-    q: str = Query(..., min_length=1),
-    department: Optional[str] = Query(None),
-    course_level: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-):
-    """
-    Semantic search for professors.
-    Query params:
-      - q: required natural language query
-      - department: optional department filter
-      - course_level: optional (ignored unless you add the column)
-    """
-    results = search_professors(db, query=q, threshold=0.7, limit=20, department=department, course_level=course_level)
-    return {"results": results}
-
-
-@app.post("/debug/precompute_embeddings")
-def debug_precompute_embeddings(db: Session = Depends(get_db)):
-    """
-    One-off endpoint to compute & store embeddings for all professors
-    that have reviews but no embedding yet. Call this once before
-    testing /search.
-    """
-    try:
-        precompute_and_store_all_embeddings(db)
-        return {"detail": "ok"}
-    except Exception as exc:
-        logger.exception("precompute_and_store_all_embeddings failed")
-        raise HTTPException(status_code=500, detail=str(exc))

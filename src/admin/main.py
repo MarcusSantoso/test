@@ -19,7 +19,7 @@ import hashlib
 import json
 from datetime import datetime, date
 from datetime import timezone
-from src.shared.ai_summarization_engine import (
+from src.services.ai_summarization_engine import (
     MissingAPIKey,
     MissingOpenAIClient,
     get_summarization_engine,
